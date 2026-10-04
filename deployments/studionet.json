@@ -1,0 +1,169 @@
+{
+  "network": "studionet",
+  "txs": [
+    {
+      "label": "deploy",
+      "hash": "0xe0b09a4e2e8444b18a55bc559775757a7d8626511853857874a9afb1421c8573",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:14:02.963Z"
+    },
+    {
+      "label": "create_pool \"probe-invalid\"",
+      "hash": "0x2c9c487d5cee67cf6269eacdd6e393dc4e5521a6f9c4822cf9c3d0d66fb974d1",
+      "status": "FINALIZED",
+      "execution": "ERROR",
+      "at": "2026-10-04T11:14:12.082Z"
+    },
+    {
+      "label": "deploy",
+      "hash": "0xc8d7b47d19c910b0754cad1a44cb5b8e272529c8c71de8cb41be743c21cb392d",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:14:56.040Z"
+    },
+    {
+      "label": "create_pool \"MMLU \u00b7 virology (test split)\"",
+      "hash": "0x079fd044e6f5d5e7176988e7af873533aec1903a26e79ac4b4f27768b3c41f9b",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:15:13.728Z"
+    },
+    {
+      "label": "file_report pool 0 item 77 (wrong_answer C)",
+      "hash": "0x58bc14a13f1d593dda84fb61313fdc0c624f26c8db15f62d455c547ba76c91a4",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:15:23.378Z"
+    },
+    {
+      "label": "file_report pool 0 item 136 (wrong_answer B)",
+      "hash": "0xa692a95499a08843164336ba5be671ae752d8c738a073b15bdbea0b791617aef",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:15:29.296Z"
+    },
+    {
+      "label": "file_report pool 0 item 25 (wrong_answer A)",
+      "hash": "0xb337a35e66eb165b64c94e48874ff6199eff3bad6051b3319ae7662df39ac090",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:15:39.133Z"
+    },
+    {
+      "label": "adjudicate #0",
+      "hash": "0x2605f6aa173f0f274a2817bbe7d5d46601f6a64479eb92c3d887c18e8538d35f",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:16:20.492Z"
+    },
+    {
+      "label": "adjudicate #1",
+      "hash": "0x43b0171574607114b14c34350460b6eb5e9d8ccbd69882bdd038eb2d1c837c82",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:16:25.685442+00:00"
+    },
+    {
+      "label": "adjudicate #2",
+      "hash": "0x7922732f391e444f102589f91ba9b43ae5af871a4add9d8ffec8de7628b05d60",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:17:50.572Z"
+    },
+    {
+      "label": "appeal #1 (pool owner)",
+      "hash": "0x6cb3ab6da831a69820d821d7d77d8f64eecea81a522d4754d518c7b44d54a5a2",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:18:01.027986+00:00"
+    },
+    {
+      "label": "appeal #2",
+      "hash": "0xa0af362d67405bba854b5ce04c6ffdf4a830d124a3c022fe05c362b6913e2553",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:18:31.542Z"
+    },
+    {
+      "label": "settle #0",
+      "hash": "0x88302fe3d6ec275174fddf01f827ef6bfb21857b1722eeaae08306c2f04f9345",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:18:54.353Z"
+    },
+    {
+      "label": "settle #1",
+      "hash": "0xf51177963d7be390a9766fe46cca34ee1c49d35a5e28ff111efc3ec1c2501836",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:19:00.286Z"
+    },
+    {
+      "label": "settle #2",
+      "hash": "0xc45315d72bdb1bed8bdf4f206dd448207802e5720635863a990ef15802bb9ea6",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:19:06.139Z"
+    },
+    {
+      "label": "file_report pool 0 item 77 (wrong_answer C)",
+      "hash": "0xdd9bfa7e72ec04805c76a85dd225a3625d93820ccac58ef7042829ff7f9e75aa",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:19:20.200Z"
+    },
+    {
+      "label": "emitted transfer (settle #0 payout)",
+      "hash": "0x2d3a1050888b3226009bb4ac3d41835a4752f90b7dcd0ef221d759b68a4db2ff",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:19:22.056370+00:00"
+    },
+    {
+      "label": "emitted transfer (settle #1 payout)",
+      "hash": "0xbbeb14d2ac77f99999dec3f362f60d816585d5ca9976dedeae1625ccf4344560",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:19:29.913005+00:00"
+    },
+    {
+      "label": "emitted transfer (refund of the bounced duplicate report)",
+      "hash": "0x1b04e570e9afdf2647a03f5cd766d8bb6bc24d2731cfacd58d0908be65ca155d",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:19:49.206844+00:00"
+    },
+    {
+      "label": "file_report pool 0 item 0 (web app, burner account)",
+      "hash": "0xca85567b550dc2628733191c0e4cc2f9446c513322df349985263f467cf7baa9",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:21:07.366990+00:00"
+    },
+    {
+      "label": "adjudicate #3 (web app)",
+      "hash": "0x4dad0ad95cf0f130da6450318cca3c9ee8f8e1807d7f78e472d9411fffb82fc5",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:21:17.935093+00:00"
+    },
+    {
+      "label": "settle #3",
+      "hash": "0x74290bde8172260fff2d81a5e8e8a90aaeaafb03c73089900eedc0950f03e080",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "at": "2026-10-04T11:24:39.727Z"
+    }
+  ],
+  "contract": "0xbf2Ab9B2c9344285BF344B166C7E1e16CBB79b94",
+  "deployer": "0xc7AC1469a8dc7E4df3CE2D646dd6D01296548CEd",
+  "deployTx": "0xc8d7b47d19c910b0754cad1a44cb5b8e272529c8c71de8cb41be743c21cb392d",
+  "superseded": [
+    {
+      "contract": "0x4b1c042Bf3bE802B97E6Bc7273F66DC46c21E300",
+      "deployTx": "0xe0b09a4e2e8444b18a55bc559775757a7d8626511853857874a9afb1421c8573",
+      "why": "v1: payable validation reverted; probe tx 0x2c9c487d... proved the attached 1 GEN stays in the contract after a FINALIZED rollback, so v2 refunds instead of reverting"
+    }
+  ]
+}
