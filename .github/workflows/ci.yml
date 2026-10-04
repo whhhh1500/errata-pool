@@ -1,0 +1,29 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install genlayer-test==0.29.2 genvm-linter==0.11.0 pytest
+      - name: Pre-fetch the GenVM SDK that matches the contract header (v0.2.16)
+        run: |
+          mkdir -p ~/.cache/gltest-direct ~/.cache/genvm-linter
+          curl -sSL -o ~/.cache/gltest-direct/genvm-universal-v0.2.16.tar.xz \
+            https://github.com/genlayerlabs/genvm/releases/download/v0.2.16/genvm-universal.tar.xz
+          cp ~/.cache/gltest-direct/genvm-universal-v0.2.16.tar.xz ~/.cache/genvm-linter/
+      - run: genvm-lint check contracts/errata_pool.py
+      - run: python -m pytest -q tests/unit
+      - run: cd tests/direct && python -m pytest -q
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
