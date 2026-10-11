@@ -469,18 +469,88 @@
       "at": "2026-10-11T22:01:02.981Z"
     },
     {
-      "label": "[v0.3 browser e2e] owner create_pool #4 \"MMLU \u00b7 virology (test split) \u00b7 v0.3 demo\"",
+      "label": "[v0.3 browser e2e] owner create_pool #4 \"MMLU · virology (test split) · v0.3 demo\"",
       "hash": "0x248031ffb4def5b22197acab9641f2896f71e54889fa01912bf3c05f998c9e8a",
       "status": "5",
       "execution": "SUCCESS",
       "at": "2026-10-11T22:05:52.777Z"
     },
     {
-      "label": "[v0.3 browser e2e] owner create_pool #5 \"MMLU \u00b7 virology (test split) \u00b7 v0.3 demo\"",
+      "label": "[v0.3 browser e2e] owner create_pool #5 \"MMLU · virology (test split) · v0.3 demo\"",
       "hash": "0x0bf7c04b6426a950f6a65c0ebd96611c3c9e3970dc100543dbb46f5e2d92d6b7",
       "status": "5",
       "execution": "SUCCESS",
       "at": "2026-10-11T22:08:11.323Z"
+    },
+    {
+      "label": "[v0.3 browser e2e] owner create_pool #6 \"MMLU · virology (test split) · v0.3 demo\"",
+      "hash": "0x8aa340cc3b7d930c25a81b953c7d8e8d7d43ee5c27cd3d02622e65305c893beb",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:11:25.096Z"
+    },
+    {
+      "label": "[v0.3 browser e2e] owner settle #11 while the burner's dialog is open (race)",
+      "hash": "0x354be19301c5e45e74b16c82afa84a0b3133aa1d7c6720e549ce059f41525df6",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:13:21.406Z"
+    },
+    {
+      "label": "settle #6",
+      "hash": "0x416f3acf46389a503f2a0824f5d59ee9aeb09f1cf79f070cb2ecb31adb119d6b",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:15:04.550Z"
+    },
+    {
+      "label": "settle #7",
+      "hash": "0xf70be0a939b7ff940b5bfdccbd5a68559ddff9f8147483b87e7eaacd2ad488be",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:15:11.408Z"
+    },
+    {
+      "label": "settle #8",
+      "hash": "0x7de80dedef4756e9a37a6c7377e00ab7b3877e281a79aa3417905ee0e298b344",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:15:18.446Z"
+    },
+    {
+      "label": "settle #9",
+      "hash": "0xc886c442406c1227abe0fe071fa2d98b9bb66a0e0fab8e9e768d36afed0fe0b9",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:15:29.791Z"
+    },
+    {
+      "label": "close_pool #3",
+      "hash": "0xcf670aca9c25d6b166268ea099a2a7da8d6ab1afc7df4e4ed0d29637f258084e",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:15:41.135Z"
+    },
+    {
+      "label": "close_pool #4",
+      "hash": "0x344526f8352544b5c73091de42cac57e3a894da975d8bc278baecd5b4a1f8e6e",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:15:51.940Z"
+    },
+    {
+      "label": "close_pool #5",
+      "hash": "0xe8d804afcaa3210f37641602752fd34f118353ea2dc1fce9993613a5c904cbf2",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:16:01.846Z"
+    },
+    {
+      "label": "claim",
+      "hash": "0x8e46c12e65d0dd9fb7a5d4e7e2812bcaf39ad9ab37ff276ef453583cf2f6d5be",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:16:07.685Z"
     }
   ],
   "previous": [
@@ -1649,7 +1719,7 @@
           "at": "2026-10-11T21:05:04.104Z"
         },
         {
-          "label": "[v0.3 browser e2e] owner create_pool #10 \"MMLU \u00b7 virology (test split) \u00b7 v0.3 demo\"",
+          "label": "[v0.3 browser e2e] owner create_pool #10 \"MMLU · virology (test split) · v0.3 demo\"",
           "hash": "0x9e05902e005c45c1eb8886cdd8a7ca1c1977e894089b2c6fe5da8c207ae3adfa",
           "status": "5",
           "execution": "SUCCESS",
@@ -2178,7 +2248,7 @@
           "at": "2026-10-11T15:43:07.056Z"
         },
         {
-          "label": "create_pool \"MMLU \u00b7 virology (test split) \u00b7 v0.2\"",
+          "label": "create_pool \"MMLU · virology (test split) · v0.2\"",
           "hash": "0x84bc76fce8e2b914c9ed26b3d43e5e2e272a070f5b41649ceefb22d6fd89543c",
           "status": "5",
           "execution": "SUCCESS",
@@ -2213,7 +2283,7 @@
           "at": "2026-10-04T11:14:56.040Z"
         },
         {
-          "label": "create_pool \"MMLU \u00b7 virology (test split)\"",
+          "label": "create_pool \"MMLU · virology (test split)\"",
           "hash": "0x079fd044e6f5d5e7176988e7af873533aec1903a26e79ac4b4f27768b3c41f9b",
           "status": "FINALIZED",
           "execution": "SUCCESS",
@@ -2369,7 +2439,7 @@
       "why": "Studio gateway answered gen_call without CORS headers several times in a row; the final-settlement dialog could not load its preview and correctly sent nothing, the harness then timed out. Fixed: reads retry, the dialog logs a \"Not sent\" error, the harness retries opening it.",
       "txs": [
         "0x8b3205b4f2dd10078fb35b9a100fb9c44bf4fd0e458b457fcab1542aadbb91df (owner create_pool #3)",
-        "browser burner: file_report #6 0x500c\u20265c83, adjudicate #6 0xcfd8\u2026bda4 (UPHELD), file_report #7 0x5663\u2026874a, adjudicate #7 0xc372\u2026ff52 (REJECTED); #6/#7 left for settlement, see below"
+        "browser burner: file_report #6 0x500c…5c83, adjudicate #6 0xcfd8…bda4 (UPHELD), file_report #7 0x5663…874a, adjudicate #7 0xc372…ff52 (REJECTED); #6/#7 left for settlement, see below"
       ],
       "pool": 3,
       "reports": [
@@ -2386,7 +2456,7 @@
       ],
       "txs": [
         "0x248031ffb4def5b22197acab9641f2896f71e54889fa01912bf3c05f998c9e8a (owner create_pool #4, also in txs)",
-        "browser burner: file_report #8 0x2cd8\u20268c09, adjudicate #8 0xf03a\u20266c94 (UPHELD)"
+        "browser burner: file_report #8 0x2cd8…8c09, adjudicate #8 0xf03a…6c94 (UPHELD)"
       ]
     },
     {
@@ -2399,7 +2469,7 @@
       ],
       "txs": [
         "0x0bf7c04b6426a950f6a65c0ebd96611c3c9e3970dc100543dbb46f5e2d92d6b7 (owner create_pool #5, also in txs)",
-        "browser burner: file_report #9 0xfd69\u2026a1b8, adjudicate #9 0x14ed\u20267e81 (UPHELD), file_report #10 0xe12c\u202694db, adjudicate #10 0x9d5f\u2026d791 (reverted: HTTP 503)"
+        "browser burner: file_report #9 0xfd69…a1b8, adjudicate #9 0x14ed…7e81 (UPHELD), file_report #10 0xe12c…94db, adjudicate #10 0x9d5f…d791 (reverted: HTTP 503)"
       ]
     }
   ]
