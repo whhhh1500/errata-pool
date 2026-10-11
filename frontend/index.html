@@ -95,7 +95,11 @@
           <div><label for="p-stake">Min stake (GEN)</label><input id="p-stake" name="stake" type="number" step="0.01" min="0" value="0.2"></div>
           <div><label for="p-window">Review window (s)</label><input id="p-window" name="window" type="number" min="0" max="1209600" value="300"></div>
         </div>
-        <label for="p-fund">Initial funding (GEN)</label><input id="p-fund" name="fund" type="number" step="0.01" min="0.01" value="5">
+        <div class="two">
+          <div><label for="p-fund">Initial funding (GEN)</label><input id="p-fund" name="fund" type="number" step="0.01" min="0.01" value="5"></div>
+          <div><label for="p-timeout">Adjudication timeout (s)</label><input id="p-timeout" name="timeout" type="number" min="60" max="2592000" value="604800"></div>
+        </div>
+        <p class="hint">A report nobody can adjudicate within the timeout (source down, no consensus) can be recovered by anyone: stake back to the reporter, reward back to the pool. Evidence pages are only used in the first half of the timeout.</p>
         <button class="primary" type="submit">Fund and open pool</button>
       </form>
     </section>
@@ -106,6 +110,18 @@
     </section>
   </main>
   <footer>ErrataPool · MIT · <a href="https://github.com/whhhh1500/errata-pool">source</a> · GenLayer Intelligent Contract with web fetch, LLM judgment and a custom validator</footer>
+  <dialog id="confirm" aria-labelledby="c-title">
+    <form method="dialog">
+      <h3 id="c-title">Confirm transaction</h3>
+      <dl class="kv" id="c-rows"></dl>
+      <ul class="warn" id="c-warn"></ul>
+      <div id="c-typed" hidden><label for="c-typed-in" id="c-typed-label"></label><input id="c-typed-in" autocomplete="off"></div>
+      <div class="row end">
+        <button class="ghost" value="cancel" type="submit" id="c-cancel">Cancel</button>
+        <button class="primary" value="ok" type="submit" id="c-ok">Sign and send</button>
+      </div>
+    </form>
+  </dialog>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

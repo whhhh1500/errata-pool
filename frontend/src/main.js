@@ -103,6 +103,47 @@ async function renderAccount() {
     account.kind === "demo account" ? el("button", { class: "ghost small", type: "button", onclick: async () => { await rpc("sim_fundAccount", [account.address, Number(20n * GEN)]); renderAccount(); } }, "+20 test GEN") : null);
 }
 
+// ---------- confirmation ----------
+// Every write goes through this dialog: what is called, on which contract and network, from
+// which account, how much GEN leaves the wallet and what can happen to it. Destructive owner
+// actions need the pool id typed in. Nothing is signed until "Sign and send".
+let busy = false;
+function confirmTx({ title, value = 0n, rows = [], warnings = [], typed = null }) {
+  const dlg = $("#confirm");
+  $("#c-title").textContent = title;
+  const all = [["Contract", `${CONTRACT} (GenLayer Studio, test GEN)`], ["From", `${account.address} · ${account.kind}`],
+    ["Attached value", value > 0n ? fmtGen(value) : "none"], ...rows];
+  $("#c-rows").replaceChildren(...all.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
+  $("#c-warn").replaceChildren(...warnings.map((w) => el("li", {}, w)));
+  const box = $("#c-typed"), inp = $("#c-typed-in"), ok = $("#c-ok");
+  box.hidden = !typed;
+  inp.value = "";
+  ok.disabled = !!typed;
+  if (typed) {
+    $("#c-typed-label").textContent = typed.label;
+    inp.oninput = () => { ok.disabled = inp.value.trim() !== typed.expect; };
+  }
+  return new Promise((resolve) => {
+    dlg.onclose = () => resolve(dlg.returnValue === "ok" && (!typed || inp.value.trim() === typed.expect));
+    dlg.returnValue = "";
+    dlg.showModal();
+    (typed ? inp : $("#c-cancel")).focus();
+  });
+}
+async function walletBalance() {
+  try { return big(await rpc("eth_getBalance", [account.address, "latest"])); } catch { return null; }
+}
+// pre-flight checks mirror the contract; a failed check never reaches the wallet
+async function preflight(value, checks) {
+  const problems = checks.filter(([bad]) => bad).map(([, msg]) => msg);
+  if (value > 0n) {
+    const b = await walletBalance();
+    if (b != null && b < value) problems.push(`Your balance is ${fmtGen(b)}, below the ${fmtGen(value)} you would attach.`);
+  }
+  if (problems.length) { log(`Not sent: ${problems.join(" ")}`, null, "err"); return false; }
+  return true;
+}
+
 // ---------- writes ----------
 function decodePayload(pl) {
   const s = typeof pl === "string" ? pl : pl?.readable;
@@ -116,8 +157,15 @@ function decodePayload(pl) {
   const err = s.match(/"error":"((?:[^"\\]|\\.)*)"/);
   return { ok: ok[1] === "true", ...(id ? { id: Number(id[1]) } : {}), ...(err ? { error: err[1] } : {}) };
 }
-async function send(label, functionName, args, value = 0n) {
+async function send(label, functionName, args, value = 0n, confirm = {}) {
+  if (busy) return false;
   if (!account) await useBurner();
+  if (!(await confirmTx({ title: label, value, ...confirm, rows: [["Call", `${functionName}(${args.map((x) => (typeof x === "string" ? JSON.stringify(x.length > 40 ? x.slice(0, 40) + "…" : x) : String(x))).join(", ")})`], ...(confirm.rows || [])] }))) {
+    log(`${label}: cancelled, nothing was signed`);
+    return false;
+  }
+  busy = true;
+  document.body.classList.add("busy");
   const item = log(`${label}: sending…`);
   try {
     const hash = await account.client.writeContract({ address: CONTRACT, functionName, args, value });
@@ -137,6 +185,9 @@ async function send(label, functionName, args, value = 0n) {
     item.className = "err";
     item.textContent = `${label}: ${e.shortMessage || e.message}`;
     return false;
+  } finally {
+    busy = false;
+    document.body.classList.remove("busy");
   }
 }
 
@@ -147,6 +198,8 @@ async function refresh() {
     pools = list;
     $("#stats").replaceChildren(stat("Pools", stats.pools), stat("Reports", stats.reports), stat("Paid to reviewers", fmtGen(stats.total_paid)),
       stat("Stakes forfeited", fmtGen(stats.total_forfeited)), stat("Refunded bad calls", fmtGen(stats.total_bounced)));
+    if (!params.has("pool") && !refresh.done && pools.some((p) => p.open)) poolSel = Number(pools.filter((p) => p.open).at(-1).id);
+    refresh.done = true;
     if (pools.length && !pools.some((p) => Number(p.id) === poolSel)) poolSel = Number(pools[0].id);
     if (pools.length) [reports, errata] = await Promise.all([read("list_reports", [BigInt(poolSel)]), read("get_errata", [BigInt(poolSel)])]);
     renderAll();
@@ -189,6 +242,7 @@ function renderPool() {
       el("dt", {}, "Reward"), el("dd", {}, `${fmtGen(p.reward)} per accepted erratum (min stake ${fmtGen(p.min_stake)})`),
       el("dt", {}, "Funds"), el("dd", {}, `${fmtGen(p.balance)} free · ${fmtGen(p.reserved)} reserved · ${fmtGen(p.paid)} paid`),
       el("dt", {}, "Review window"), el("dd", {}, `${p.window_secs} s`),
+      el("dt", {}, "Adjudication timeout"), el("dd", {}, `${p.timeout_secs} s (stuck reports are recoverable after this)`),
       el("dt", {}, "Owner"), el("dd", {}, addrLink(p.owner)),
     ),
     el("div", { class: "row" }, el("h4", {}, `Accepted errata (${errata.length})`), errata.length ? exportBtn : null),
@@ -203,8 +257,19 @@ function renderPool() {
       el("span", { class: "m" }, `${short(r.reporter)} staked ${fmtGen(r.stake)}${r.verdict ? " · verdict " + r.verdict : ""}${r.appealed ? " · appealed" : ""}`)))) : el("p", { class: "muted" }, "No reports yet."),
     el("div", { class: "actions" },
       p.open ? el("div", { class: "row" }, el("label", { for: "fund-amt" }, "Top up (anyone)"), fundAmt,
-        el("button", { class: "ghost small", type: "button", onclick: () => send(`fund_pool #${p.id}`, "fund_pool", [BigInt(p.id)], toWei(fundAmt.value)) }, "Fund")) : null,
-      isOwner && p.open ? el("button", { class: "ghost small", type: "button", onclick: () => send(`close_pool #${p.id}`, "close_pool", [BigInt(p.id)]) }, "Close pool and refund free funds") : null,
+        el("button", { class: "ghost small", type: "button", onclick: async () => {
+          const v = toWei(fundAmt.value);
+          if (!(await preflight(v, [[v <= 0n, "Enter an amount above 0."]]))) return;
+          send(`fund_pool #${p.id}`, "fund_pool", [BigInt(p.id)], v, { warnings: [
+            isOwner ? "You own this pool: unreserved funds stay withdrawable by you." : `This is a donation: only the pool owner (${short(p.owner)}) can withdraw unreserved funds.`] });
+        } }, "Fund")) : null,
+      isOwner && p.open ? el("button", { class: "ghost small", type: "button", onclick: () => send(`close_pool #${p.id}`, "close_pool", [BigInt(p.id)], 0n, {
+        rows: [["Refund now", fmtGen(p.balance)], ["Stays reserved", `${fmtGen(p.reserved)} for reports in flight`]],
+        warnings: ["Closing is permanent: no new reports and no top-ups.", "Rewards and forfeited stakes that come back later are collected with “Withdraw free funds”."],
+        typed: { label: `Type the pool id (${p.id}) to close it`, expect: String(p.id) } }) }, "Close pool and refund free funds") : null,
+      isOwner && big(p.balance) > 0n && !p.open ? el("button", { class: "ghost small", type: "button", onclick: () => send(`withdraw_free #${p.id}`, "withdraw_free", [BigInt(p.id), 0n], 0n, {
+        rows: [["You receive", fmtGen(p.balance)], ["Untouched", `${fmtGen(p.reserved)} reserved for reports in flight`]],
+        typed: { label: `Type the pool id (${p.id}) to withdraw`, expect: String(p.id) } }) }, `Withdraw free funds (${fmtGen(p.balance)})`) : null,
     ),
   );
   $("#f-stake").min = String(Number(big(p.min_stake)) / 1e18);
@@ -221,16 +286,27 @@ function renderReport() {
   const canAppeal = windowOpen && me && ((r.status === "UPHELD" && me === p.owner.toLowerCase()) || (r.status === "REJECTED" && me === r.reporter.toLowerCase()));
   const actions = el("div", { class: "actions" });
   if (r.status === "PENDING") {
-    actions.append(el("button", { class: "primary", type: "button", onclick: () => send(`adjudicate #${r.id}`, "adjudicate", [BigInt(r.id)]) }, "Adjudicate now (validators fetch the item and vote)"));
-    if (me === r.reporter.toLowerCase()) actions.append(el("button", { class: "ghost", type: "button", onclick: () => send(`withdraw_report #${r.id}`, "withdraw_report", [BigInt(r.id)]) }, "Withdraw and refund stake"));
+    const withEvidence = r.evidence_url && now < Number(r.evidence_until);
+    actions.append(el("button", { class: "primary", type: "button", onclick: () => send(`adjudicate #${r.id}`, "adjudicate", [BigInt(r.id)], 0n, {
+      rows: [["Judged on", withEvidence ? "item + justification + evidence page" : "item + justification (evidence page no longer used)"]],
+      warnings: ["The verdict is final for this step: an INVALID verdict puts the reporter's stake at risk; VALID commits the pool's reserved reward. Each side can appeal once."] }) }, "Adjudicate now (validators fetch the item and vote)"));
+    if (me === r.reporter.toLowerCase()) actions.append(el("button", { class: "ghost", type: "button", onclick: () => send(`withdraw_report #${r.id}`, "withdraw_report", [BigInt(r.id)], 0n, { rows: [["Refund", fmtGen(r.stake)]] }) }, "Withdraw and refund stake"));
+    if (now >= Number(r.recoverable_at)) actions.append(el("button", { class: "ghost", type: "button", onclick: () => send(`recover_stuck #${r.id}`, "recover_stuck", [BigInt(r.id)], 0n, {
+      rows: [["Stake", `${fmtGen(r.stake)} → reporter ${short(r.reporter)}`], ["Reserved reward", `${fmtGen(r.reserved)} → pool #${r.pool_id} free balance`]],
+      warnings: ["You receive nothing: recovery only unsticks the funds. The report becomes EXPIRED and the item can be reported again."] }) }, "Recover stuck report (timeout passed)"));
+    else actions.append(el("p", { class: "hint" }, `If adjudication keeps failing, anyone can recover this report after ${new Date(Number(r.recoverable_at) * 1000).toLocaleString()}.`));
   }
   if (canAppeal) {
     const reason = el("textarea", { id: "appeal-reason", rows: 2, maxlength: 600, placeholder: "Why is the verdict wrong?" });
     actions.append(el("label", { for: "appeal-reason" }, `Appeal once (${r.status === "UPHELD" ? "pool owner" : "reporter"}); re-judged on the stored snapshot`), reason,
-      el("button", { class: "ghost", type: "button", onclick: () => send(`appeal #${r.id}`, "appeal", [BigInt(r.id), reason.value]) }, "Appeal"));
+      el("button", { class: "ghost", type: "button", onclick: async () => {
+        if (!(await preflight(0n, [[reason.value.trim().length < 10, "Give a reason of at least 10 characters."]]))) return;
+        send(`appeal #${r.id}`, "appeal", [BigInt(r.id), reason.value], 0n, { warnings: ["You can appeal only once. Validators re-judge the stored snapshot and both statements; the new verdict replaces the first."] });
+      } }, "Appeal"));
   }
   if (["UPHELD", "REJECTED"].includes(r.status)) {
-    actions.append(el("button", { class: "primary", type: "button", disabled: windowOpen ? true : false, onclick: () => send(`settle #${r.id}`, "settle", [BigInt(r.id)]) },
+    actions.append(el("button", { class: "primary", type: "button", disabled: windowOpen ? true : false, onclick: () => send(`settle #${r.id}`, "settle", [BigInt(r.id)], 0n, {
+      rows: [["Pays", r.status === "UPHELD" ? `${fmtGen(big(r.reserved) + big(r.stake))} → reporter ${short(r.reporter)}` : `stake ${fmtGen(r.stake)} forfeited into pool #${r.pool_id}`]] }) },
       windowOpen ? `Settle (window closes ${new Date(Number(r.window_end) * 1000).toLocaleTimeString()})` : "Settle"));
   }
   box.replaceChildren(...[
@@ -268,15 +344,42 @@ $("#preview-btn").addEventListener("click", async () => {
 $("#file-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = new FormData(ev.target);
-  const res = await send(`file_report item ${f.get("item")}`, "file_report",
-    [BigInt(poolSel), f.get("item").trim(), f.get("kind"), f.get("choice").trim().toUpperCase(), f.get("fix"), f.get("why"), f.get("ev").trim()], toWei(f.get("stake")));
+  const p = pools.find((x) => Number(x.id) === poolSel);
+  const stake = toWei(f.get("stake"));
+  const item = f.get("item").trim(), kind = f.get("kind"), choice = f.get("choice").trim().toUpperCase();
+  const me = account?.address?.toLowerCase();
+  const ok = await preflight(stake, [
+    [!p, "Pick a pool first."],
+    [p && !p.open, "This pool is closed."],
+    [p && me && me === p.owner.toLowerCase(), "Pool owners cannot report into their own pool."],
+    [p && stake < big(p.min_stake), `Stake must be at least ${p ? fmtGen(p.min_stake) : ""}.`],
+    [p && big(p.balance) < big(p.reward), "The pool cannot cover another reward right now."],
+    [kind === "wrong_answer" && !/^[A-J]$/.test(choice), "A wrong-answer report needs the correct choice letter (A-J)."],
+    [f.get("why").trim().length < 10, "Explain the error (at least 10 characters)."],
+    [reports.some((r) => r.item_id === item && ["PENDING", "UPHELD", "REJECTED", "PAID"].includes(r.status)), `Item ${item} already has an open or accepted report.`],
+  ]);
+  if (!ok) return;
+  const res = await send(`file_report item ${item}`, "file_report",
+    [BigInt(poolSel), item, kind, choice, f.get("fix"), f.get("why"), f.get("ev").trim()], stake, {
+      rows: [["Claim", `${KIND[kind]}${kind === "wrong_answer" ? ` → ${choice}` : ""} on item ${item}`], ["If upheld", `you receive ${fmtGen(p.reward)} + your stake back`], ["If rejected", `your ${fmtGen(stake)} stake is forfeited to the pool`]],
+      warnings: [`After ${p.timeout_secs} s without an adjudication anyone can recover the report and refund your stake.`] });
   if (res && typeof res === "object" && res.id != null) { reportSel = Number(res.id); await refresh(); $("#report-wrap").scrollIntoView({ behavior: "smooth" }); }
 });
 $("#pool-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = new FormData(ev.target);
+  const fund = toWei(f.get("fund")), reward = toWei(f.get("reward")), timeout = Number(f.get("timeout"));
+  const ok = await preflight(fund, [
+    [!f.get("tpl").includes("{id}") || !/^https?:\/\//.test(f.get("tpl").trim()), "The item URL must be http(s) and contain {id}."],
+    [reward <= 0n, "Reward must be above 0."],
+    [fund < reward, "Fund at least one reward."],
+    [!(timeout >= 60 && timeout <= 2592000), "Adjudication timeout must be 60 s to 30 days."],
+  ]);
+  if (!ok) return;
   const res = await send(`create_pool "${f.get("name")}"`, "create_pool",
-    [f.get("name"), f.get("tpl").trim(), f.get("rules"), toWei(f.get("reward")), toWei(f.get("stake")), BigInt(f.get("window"))], toWei(f.get("fund")));
+    [f.get("name"), f.get("tpl").trim(), f.get("rules"), reward, toWei(f.get("stake")), BigInt(f.get("window")), BigInt(timeout)], fund, {
+      rows: [["Covers", `${fund / (reward || 1n)} reward(s) of ${fmtGen(reward)}`]],
+      warnings: ["Rewards for filed reports are reserved and cannot be withdrawn until those reports settle or expire."] });
   if (res && typeof res === "object" && res.id != null) { poolSel = Number(res.id); await refresh(); }
 });
 $("#refresh").addEventListener("click", refresh);

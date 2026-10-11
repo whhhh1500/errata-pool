@@ -12,6 +12,15 @@ const waitLog = async (re, ms = 400000) => {
   while (Date.now() - t0 < ms) { const l = await logText(); const hit = l.find((x) => re.test(x)); if (hit) return hit; await new Promise((r) => setTimeout(r, 3000)); }
   throw new Error("timeout " + re);
 };
+// every write opens the confirmation dialog; answer it and keep a screenshot of the first one
+let shots = 0;
+async function answerDialog(accept) {
+  await page.waitForSelector("dialog#confirm[open]", { timeout: 60000 });
+  const text = await page.$eval("dialog#confirm", (d) => d.innerText);
+  console.log(`dialog (${accept ? "accept" : "cancel"}):`, text.replace(/\s+/g, " ").slice(0, 400));
+  if (!shots++) await (await page.$("dialog#confirm")).screenshot({ path: new URL("../media/confirm.png", import.meta.url).pathname });
+  await page.click(accept ? "#c-ok" : "#c-cancel");
+}
 await page.click("#acct button.primary");
 await page.waitForFunction(() => document.querySelector("#acct .pill"), { timeout: 60000 });
 console.log("acct:", await page.$eval("#acct", (e) => e.textContent));
@@ -24,10 +33,23 @@ await page.$eval("#f-choice", (e) => (e.value = "C"));
 await page.type("#f-fix", "Answer key should be C) 10");
 await page.type("#f-why", "Over a dozen human polyomaviruses are known today (BK, JC, MCPyV, TSPyV, HPyV6, 7, 9, 10, 12, NJPyV, LIPyV...), so '100' is wrong; '10' is the closest order of magnitude and matches the source textbook.");
 await page.type("#f-ev", "https://en.wikipedia.org/wiki/Polyomaviridae");
+// a) pre-flight: stake below the pool minimum never reaches the wallet
+// (the input's min attribute already blocks this natively; drop it to test the script layer too)
+await page.$eval("#f-stake", (e) => { e.removeAttribute("min"); e.value = "0.01"; });
 await page.click("#file-form button[type=submit]");
+console.log(await waitLog(/Not sent: .*Stake must be at least/, 20000));
+await page.$eval("#f-stake", (e) => (e.value = "0.5"));
+// b) cancel in the dialog: nothing signed
+await page.click("#file-form button[type=submit]");
+await answerDialog(false);
+console.log(await waitLog(/file_report item 0: cancelled, nothing was signed/, 20000));
+// c) confirm
+await page.click("#file-form button[type=submit]");
+await answerDialog(true);
 console.log(await waitLog(/file_report item 0: .*(ok|refused|reverted)/));
 await page.waitForFunction(() => document.querySelector("#report h3"), { timeout: 60000 });
 await page.evaluate(() => [...document.querySelectorAll("#report button")].find((b) => b.textContent.startsWith("Adjudicate"))?.click());
+await answerDialog(true);
 console.log(await waitLog(/adjudicate #\d+: .*(ok|reverted)/));
 await new Promise((r) => setTimeout(r, 4000));
 console.log("report:", (await page.$eval("#report", (e) => e.innerText)).slice(0, 1500));

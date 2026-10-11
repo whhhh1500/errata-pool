@@ -22,7 +22,12 @@ function unwrap(d) {
 
 export function normalizeItem(body) {
   let data;
-  try { data = unwrap(JSON.parse(body)); } catch {
+  try {
+    const raw = JSON.parse(body);
+    // datasets-server answers an out-of-range offset with 200 and no rows: no item
+    if (raw && typeof raw === "object" && Array.isArray(raw.rows) && !raw.rows.length) return { text: "", key: "" };
+    data = unwrap(raw);
+  } catch {
     const doc = new DOMParser().parseFromString(body, "text/html");
     doc.querySelectorAll("script,style,noscript,svg,template,nav,footer").forEach((n) => n.remove());
     return { text: (doc.body?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 4000), key: "" };

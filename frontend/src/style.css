@@ -61,3 +61,12 @@ pre.item { white-space:pre-wrap; background:#0c0f1b; border:1px solid var(--line
 h3 { margin:.2rem 0; } h4 { margin:1rem 0 .3rem; }
 .three { display:grid; grid-template-columns:repeat(3,1fr); gap:.8rem; } @media (max-width:700px) { .three { grid-template-columns:1fr; } }
 [hidden] { display:none !important; }
+
+dialog#confirm { background: var(--card); color: var(--ink); max-width: 34rem; width: calc(100% - 2rem); border: 1px solid var(--line, #ccc); border-radius: 10px; padding: 1.2rem; }
+dialog#confirm::backdrop { background: rgba(0, 0, 0, .45); }
+dialog#confirm ul.warn { margin: .6rem 0; padding-left: 1.1rem; color: var(--warn); }
+dialog#confirm ul.warn:empty { display: none; }
+dialog#confirm .end { justify-content: flex-end; gap: .5rem; margin-top: .8rem; }
+dialog#confirm #c-ok[disabled] { opacity: .5; cursor: not-allowed; }
+body.busy button:not(#c-ok):not(#c-cancel) { opacity: .55; pointer-events: none; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
