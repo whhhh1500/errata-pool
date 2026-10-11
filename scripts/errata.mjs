@@ -9,11 +9,12 @@
 // usage: node scripts/errata.mjs <cmd> [...args]
 //   fund [address] [gen]                         free Studio faucet (sim_fundAccount)
 //   deploy
-//   pool <name> <template-with-{id}> <rules> <reward GEN> <min stake GEN> <window secs> <funding GEN>
+//   pool <name> <template-with-{id}> <rules> <reward GEN> <min stake GEN> <window secs> <funding GEN> [timeout secs=604800]
 //   report <pool> <item> <kind> <choice|-> <stake GEN> <fix> <justification> [evidence url]
 //   adjudicate <report> | settle <report> | withdraw <report>
 //   appeal <report> <reason>
-//   fund-pool <pool> <GEN> | close <pool>
+//   fund-pool <pool> <GEN> | close <pool> | withdraw-free <pool> [GEN, 0 = all]
+//   recover <report>                              unstick a PENDING report after the pool's timeout
 //   show <report> | pools | reports [pool] | errata <pool> | stats | solvency | balance [address]
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -50,7 +51,7 @@ const j = (v) => JSON.stringify(v, (k, x) => (typeof x === "bigint" ? x.toString
 async function rpc(method, params) {
   const r = await fetch(RPC, {
     method: "POST",
-    headers: { "content-type": "application/json", "user-agent": "errata-pool-cli/0.1" },
+    headers: { "content-type": "application/json", "user-agent": "errata-pool-cli/0.2" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
   const body = await r.json();
@@ -101,8 +102,8 @@ switch (cmd) {
     break;
   }
   case "pool": {
-    const [name, template, rules, reward, stake, secs, funding] = a;
-    await write("create_pool", [name, template, rules, gen(reward), gen(stake), BigInt(secs)], gen(funding), `create_pool "${name}"`);
+    const [name, template, rules, reward, stake, secs, funding, timeout] = a;
+    await write("create_pool", [name, template, rules, gen(reward), gen(stake), BigInt(secs), BigInt(timeout || 604800)], gen(funding), `create_pool "${name}"`);
     console.log(j(await read("list_pools")));
     break;
   }
@@ -118,6 +119,8 @@ switch (cmd) {
   case "withdraw": await write("withdraw_report", [BigInt(a[0])], 0n, `withdraw_report #${a[0]}`); break;
   case "fund-pool": await write("fund_pool", [BigInt(a[0])], gen(a[1]), `fund_pool #${a[0]}`); break;
   case "close": await write("close_pool", [BigInt(a[0])], 0n, `close_pool #${a[0]}`); break;
+  case "withdraw-free": await write("withdraw_free", [BigInt(a[0]), gen(a[1] || 0)], 0n, `withdraw_free #${a[0]}`); break;
+  case "recover": await write("recover_stuck", [BigInt(a[0])], 0n, `recover_stuck #${a[0]}`); console.log(j(await read("get_report", [BigInt(a[0])]))); break;
   case "show": console.log(j(await read("get_report", [BigInt(a[0])]))); break;
   case "pools": console.log(j(await read("list_pools"))); break;
   case "reports": console.log(j(await read("list_reports", [BigInt(a[0] ?? -1)]))); break;

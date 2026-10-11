@@ -3,167 +3,695 @@
   "txs": [
     {
       "label": "deploy",
-      "hash": "0xe0b09a4e2e8444b18a55bc559775757a7d8626511853857874a9afb1421c8573",
-      "status": "FINALIZED",
+      "hash": "0x3060e8145867c4f484ec5b79206212f55c48ad45572c4666feac725d58efdf90",
+      "status": "5",
       "execution": "SUCCESS",
-      "at": "2026-10-04T11:14:02.963Z"
+      "at": "2026-10-11T15:29:06.289Z"
     },
     {
-      "label": "create_pool \"probe-invalid\"",
-      "hash": "0x2c9c487d5cee67cf6269eacdd6e393dc4e5521a6f9c4822cf9c3d0d66fb974d1",
-      "status": "FINALIZED",
+      "label": "[adversarial] OWNER: create_pool (6 GEN, reward 2, min stake 0.5, window 60s, timeout 120s)",
+      "hash": "0xbaae61d57a5bda625fd22c642c60a5953268bef1db3a728251c95b481cc14fb9",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "at": "2026-10-11T15:30:05.841Z",
+      "run": 1
+    },
+    {
+      "label": "[adversarial] OWNER: owner reports into own pool (must be refused and refunded)",
+      "hash": "0x7bf6aa841fccb8467b727a0dbb6b3172f288576ae64ac279524054f6dc3df522",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "bounce:pool owner cannot report",
+      "pass": true,
+      "at": "2026-10-11T15:30:11.383Z",
+      "run": 1
+    },
+    {
+      "label": "[adversarial] REPORTER: honest erratum: item 77 key B (Endemic) should be C (Pandemic)",
+      "hash": "0x77c2a57a5d80daef1ea18335b92944a89dedd20328680174f712b0ceb49501f3",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "at": "2026-10-11T15:30:16.608Z",
+      "run": 1
+    },
+    {
+      "label": "[adversarial] ATTACKER: prompt-injection report on item 3 (key B is correct) claiming A",
+      "hash": "0x87882a79fe85782da94879785d105f20e03ba058fd01fa515e3819251e19e161",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "at": "2026-10-11T15:30:25.790Z",
+      "run": 1
+    },
+    {
+      "label": "[adversarial] REPORTER: report on item 999999 (out of range: the source has no such row)",
+      "hash": "0x4da79a3b20e41c4ee98d8fd68ac99749b7e1cbf0ccd2ddda4c4da0327782f0ae",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "at": "2026-10-11T15:30:30.825Z",
+      "run": 1
+    },
+    {
+      "label": "[adversarial] ATTACKER: duplicate report on item 77 while #77 is open",
+      "hash": "0xdaf2d72f1a0d5fdff54d98c5aa410d80fdb726c2711e3de2963e29557ba977d7",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "bounce:already has an open",
+      "pass": true,
+      "at": "2026-10-11T15:30:36.162Z",
+      "run": 1
+    },
+    {
+      "label": "[adversarial] ATTACKER: recover_stuck before the timeout",
+      "hash": "0x93468cc91eb4d97620a51a110d84c1c2eb33b57c2d7e996b4dc2594507e986ab",
+      "status": "5",
       "execution": "ERROR",
-      "at": "2026-10-04T11:14:12.082Z"
+      "expect": "revert:not stuck yet",
+      "pass": true,
+      "at": "2026-10-11T15:30:41.509Z",
+      "run": 1
     },
     {
-      "label": "deploy",
-      "hash": "0xc8d7b47d19c910b0754cad1a44cb5b8e272529c8c71de8cb41be743c21cb392d",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:14:56.040Z"
+      "label": "[adversarial] ATTACKER: withdraw_free on someone else's pool",
+      "hash": "0xcfc1c61fb4f76aa19a4565de18e3553ffe9fa09098f091ded6735fa2e95f9ef9",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the pool owner",
+      "pass": true,
+      "at": "2026-10-11T15:30:46.521Z",
+      "run": 1
     },
     {
-      "label": "create_pool \"MMLU \u00b7 virology (test split)\"",
-      "hash": "0x079fd044e6f5d5e7176988e7af873533aec1903a26e79ac4b4f27768b3c41f9b",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:15:13.728Z"
+      "label": "[adversarial] ATTACKER: withdraw the honest reporter's report",
+      "hash": "0x1a6f3b2053da592bdf9a258507982084d2e6c8bcc26c4d80a13c77c6ead6dd98",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the reporter",
+      "pass": true,
+      "at": "2026-10-11T15:30:51.494Z",
+      "run": 1
     },
     {
-      "label": "file_report pool 0 item 77 (wrong_answer C)",
-      "hash": "0x58bc14a13f1d593dda84fb61313fdc0c624f26c8db15f62d455c547ba76c91a4",
-      "status": "FINALIZED",
+      "label": "[adversarial] ATTACKER: adjudicate the honest report (anyone may)",
+      "hash": "0x8616d23bcee60743183c5f2d48bcf01122c370f2da3d026b1b707f07bfbc9dce",
+      "status": "5",
       "execution": "SUCCESS",
-      "at": "2026-10-04T11:15:23.378Z"
+      "expect": "ok",
+      "pass": true,
+      "at": "2026-10-11T15:31:13.373Z",
+      "run": 1
     },
     {
-      "label": "file_report pool 0 item 136 (wrong_answer B)",
-      "hash": "0xa692a95499a08843164336ba5be671ae752d8c738a073b15bdbea0b791617aef",
-      "status": "FINALIZED",
+      "label": "[adversarial] OWNER: adjudicate the injection report",
+      "hash": "0x83fd6bff4427e29f8d608b7eb95f4e7e679bfc837684a2549bd5014f14dfdcaa",
+      "status": "5",
       "execution": "SUCCESS",
-      "at": "2026-10-04T11:15:29.296Z"
+      "expect": "ok",
+      "pass": true,
+      "at": "2026-10-11T15:31:39.265Z",
+      "run": 1
     },
     {
-      "label": "file_report pool 0 item 25 (wrong_answer A)",
-      "hash": "0xb337a35e66eb165b64c94e48874ff6199eff3bad6051b3319ae7662df39ac090",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:15:39.133Z"
+      "label": "[adversarial] ATTACKER: adjudicate the out-of-range item (no consensus input: must revert)",
+      "hash": "0x4f225a6f9f7055aa2a46a863c88b226bca303f274821c6c58f6cd27178cc4a64",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:empty",
+      "pass": true,
+      "at": "2026-10-11T15:31:48.414Z",
+      "run": 1
     },
     {
-      "label": "adjudicate #0",
-      "hash": "0x2605f6aa173f0f274a2817bbe7d5d46601f6a64479eb92c3d887c18e8538d35f",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:16:20.492Z"
+      "label": "[adversarial] REPORTER: withdraw after a verdict (front-running exit)",
+      "hash": "0x53aac84eff7585e239239863180d94d48acc3facb6f42f7ee5fec4aa2e15f938",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only PENDING",
+      "pass": true,
+      "at": "2026-10-11T15:31:55.914Z",
+      "run": 1
     },
     {
-      "label": "adjudicate #1",
-      "hash": "0x43b0171574607114b14c34350460b6eb5e9d8ccbd69882bdd038eb2d1c837c82",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:16:25.685442+00:00"
+      "label": "[adversarial] ATTACKER: appeal a report that is not theirs",
+      "hash": "0x66109d7988136c2c25e74e25a97c247a8dfd45af613232ecd3dfd21187cc5a70",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the",
+      "pass": false,
+      "at": "2026-10-11T15:32:00.994Z",
+      "run": 1
     },
     {
-      "label": "adjudicate #2",
-      "hash": "0x7922732f391e444f102589f91ba9b43ae5af871a4add9d8ffec8de7628b05d60",
-      "status": "FINALIZED",
+      "label": "[adversarial] ATTACKER: settle inside the review window",
+      "hash": "0xafd5cc76ef2d2e74cb41b466e0f5ff51c34b3f6a398a5d1280f7a98f1e1b313c",
+      "status": "5",
       "execution": "SUCCESS",
-      "at": "2026-10-04T11:17:50.572Z"
+      "expect": "revert:window still open",
+      "pass": false,
+      "at": "2026-10-11T15:32:07.108Z",
+      "run": 1
     },
     {
-      "label": "appeal #1 (pool owner)",
-      "hash": "0x6cb3ab6da831a69820d821d7d77d8f64eecea81a522d4754d518c7b44d54a5a2",
-      "status": "FINALIZED",
+      "label": "[adversarial] OWNER: close the pool (refund free funds; in-flight reports still settle)",
+      "hash": "0x6c0cf0f264d304b6b4fafa634af30d2ff1dac90486eff5b9b3f3033539666631",
+      "status": "5",
       "execution": "SUCCESS",
-      "at": "2026-10-04T11:18:01.027986+00:00"
+      "expect": "ok",
+      "pass": true,
+      "at": "2026-10-11T15:32:16.616Z",
+      "run": 1
     },
     {
-      "label": "appeal #2",
-      "hash": "0xa0af362d67405bba854b5ce04c6ffdf4a830d124a3c022fe05c362b6913e2553",
-      "status": "FINALIZED",
+      "label": "[adversarial] ATTACKER: recover_stuck on the out-of-range report after the timeout (stake must go to the reporter)",
+      "hash": "0x571298c6c864f61f49d40bae3096ce793918502d0c06cdc056dda1e0e714b6ec",
+      "status": "5",
       "execution": "SUCCESS",
-      "at": "2026-10-04T11:18:31.542Z"
+      "expect": "ok",
+      "pass": true,
+      "at": "2026-10-11T15:33:28.574Z",
+      "run": 1
     },
     {
-      "label": "settle #0",
-      "hash": "0x88302fe3d6ec275174fddf01f827ef6bfb21857b1722eeaae08306c2f04f9345",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:18:54.353Z"
+      "label": "[adversarial] ATTACKER: recover_stuck again (double refund)",
+      "hash": "0x638508f40aaf4c55d20937d1b7434dc6027f28b3c854eec33d5c708dea103210",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only PENDING",
+      "pass": true,
+      "at": "2026-10-11T15:33:37.886Z",
+      "run": 1
     },
     {
-      "label": "settle #1",
-      "hash": "0xf51177963d7be390a9766fe46cca34ee1c49d35a5e28ff111efc3ec1c2501836",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:19:00.286Z"
+      "label": "[adversarial] ATTACKER: recover_stuck on an adjudicated report (dodge the forfeit)",
+      "hash": "0x20988a7d1aee50144608699f64b3731b52f8b3c5f8786fc0cac4765a6a96bc10",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only PENDING",
+      "pass": true,
+      "at": "2026-10-11T15:33:42.865Z",
+      "run": 1
     },
     {
-      "label": "settle #2",
-      "hash": "0xc45315d72bdb1bed8bdf4f206dd448207802e5720635863a990ef15802bb9ea6",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:19:06.139Z"
+      "label": "[adversarial] ATTACKER: settle the honest report",
+      "hash": "0xd20b198557720956a61fbbb7a6a84223c79afe4fc7b6cb9b01c3475c38642346",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "ok",
+      "pass": false,
+      "at": "2026-10-11T15:33:52.086Z",
+      "run": 1
     },
     {
-      "label": "file_report pool 0 item 77 (wrong_answer C)",
-      "hash": "0xdd9bfa7e72ec04805c76a85dd225a3625d93820ccac58ef7042829ff7f9e75aa",
-      "status": "FINALIZED",
+      "label": "[adversarial] OWNER: settle the injection report",
+      "hash": "0xb7ee2aaaa5229895bf9158a8e58904571b63a4a7741004200c82334bb86bda7a",
+      "status": "5",
       "execution": "SUCCESS",
-      "at": "2026-10-04T11:19:20.200Z"
+      "expect": "ok",
+      "pass": true,
+      "at": "2026-10-11T15:33:57.445Z",
+      "run": 1
     },
     {
-      "label": "emitted transfer (settle #0 payout)",
-      "hash": "0x2d3a1050888b3226009bb4ac3d41835a4752f90b7dcd0ef221d759b68a4db2ff",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:19:22.056370+00:00"
+      "label": "[adversarial] ATTACKER: settle again (double payout)",
+      "hash": "0xb3e3b6c5cf3fa404d2f60afe54bc2eba04ad68788b1ffa243d4c9dae292f256a",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only UPHELD or REJECTED",
+      "pass": true,
+      "at": "2026-10-11T15:34:02.516Z",
+      "run": 1
     },
     {
-      "label": "emitted transfer (settle #1 payout)",
-      "hash": "0xbbeb14d2ac77f99999dec3f362f60d816585d5ca9976dedeae1625ccf4344560",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:19:29.913005+00:00"
+      "label": "[adversarial] ATTACKER: withdraw_free on the closed pool",
+      "hash": "0x126f3c91b8e11567109f3493fbe36a6db98ab61e9f3c62b6f055db5583e1d9a0",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the pool owner",
+      "pass": true,
+      "at": "2026-10-11T15:34:13.150Z",
+      "run": 1
     },
     {
-      "label": "emitted transfer (refund of the bounced duplicate report)",
-      "hash": "0x1b04e570e9afdf2647a03f5cd766d8bb6bc24d2731cfacd58d0908be65ca155d",
-      "status": "FINALIZED",
+      "label": "[adversarial] OWNER: withdraw_free on the closed pool (forfeits + released rewards, 4.500 GEN)",
+      "hash": "0xe125bd8c1e41fa0146d576a31a0f2b2744bb35424e9330ac004312f6d6c60fc7",
+      "status": "5",
       "execution": "SUCCESS",
-      "at": "2026-10-04T11:19:49.206844+00:00"
+      "expect": "ok",
+      "pass": true,
+      "at": "2026-10-11T15:34:18.489Z",
+      "run": 1
     },
     {
-      "label": "file_report pool 0 item 0 (web app, burner account)",
-      "hash": "0xca85567b550dc2628733191c0e4cc2f9446c513322df349985263f467cf7baa9",
-      "status": "FINALIZED",
-      "execution": "SUCCESS",
-      "at": "2026-10-04T11:21:07.366990+00:00"
+      "label": "[adversarial] OWNER: withdraw_free again",
+      "hash": "0xf68bfd68596d9f25fdf9ef3f632c8c8fe35e785d995843a54c989b1736dfa3e1",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:nothing to withdraw",
+      "pass": true,
+      "at": "2026-10-11T15:34:23.577Z",
+      "run": 1
     },
     {
-      "label": "adjudicate #3 (web app)",
-      "hash": "0x4dad0ad95cf0f130da6450318cca3c9ee8f8e1807d7f78e472d9411fffb82fc5",
-      "status": "FINALIZED",
+      "label": "[adversarial] OWNER: create_pool (6 GEN, reward 2, min stake 0.5, window 240s, timeout 300s)",
+      "hash": "0xc7e2318617cda7b25c7ddfdc65841d90aacc5b492effa3561251019f0e93ef6b",
+      "status": "5",
       "execution": "SUCCESS",
-      "at": "2026-10-04T11:21:17.935093+00:00"
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:35:16.636Z"
     },
     {
-      "label": "settle #3",
-      "hash": "0x74290bde8172260fff2d81a5e8e8a90aaeaafb03c73089900eedc0950f03e080",
-      "status": "FINALIZED",
+      "label": "[adversarial] OWNER: owner reports into own pool (must be refused and refunded)",
+      "hash": "0xfab6890ddd9d2fa6c1dbbf3eb7004dcc2b1f058520f741d4ab0a85b41de06cc3",
+      "status": "5",
       "execution": "SUCCESS",
-      "at": "2026-10-04T11:24:39.727Z"
+      "expect": "bounce:pool owner cannot report",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:35:21.604Z"
+    },
+    {
+      "label": "[adversarial] REPORTER: honest erratum: item 77 key B (Endemic) should be C (Pandemic)",
+      "hash": "0x96df5b5866f3c5d393366c61374875768ec2636e210ba07a19d786409ba96c78",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:35:26.604Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: prompt-injection report on item 3 (key B is correct) claiming A",
+      "hash": "0x693c0b14f193d7e06a4a4b2b112a730b5d5fc33a105c9fe707c66c983c47af11",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:35:35.720Z"
+    },
+    {
+      "label": "[adversarial] REPORTER: report on item 999999 (out of range: the source has no such row)",
+      "hash": "0x73dcfa8c92c19be781d02173f9f5f556658ecd9d714203e823195857250d980f",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:35:40.890Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: duplicate report on item 77 while #77 is open",
+      "hash": "0x5350518b9eb5009783c5f5cf225722b659551662498094bfbcfa637b46f58310",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "bounce:already has an open",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:35:50.638Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: recover_stuck before the timeout",
+      "hash": "0x5e3d2853a78d13cbd75b0967a09673dc30a1136009a85629105e7fa2356ab0d4",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:not stuck yet",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:35:55.880Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: withdraw_free on someone else's pool",
+      "hash": "0x5cb8049d488b0d273d51988fb8ee213aed44e49fbb77605fd3895e0e82c8087e",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the pool owner",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:36:00.996Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: withdraw the honest reporter's report",
+      "hash": "0xafb8827506cb12bbfa03548e2d4f45c2ceb526091253f072fffc7a9b016ff59d",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the reporter",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:36:10.568Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: adjudicate the honest report (anyone may)",
+      "hash": "0x35886715031cac845d9684e5c794a39812e5ce1b4dd8fa847e1593152d11ff81",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:36:32.319Z"
+    },
+    {
+      "label": "[adversarial] OWNER: adjudicate the injection report",
+      "hash": "0xdd5295a8343caa93fbe209d22c778415d99381822bf859a5aeadeaa074c32ac7",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:37:10.898Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: adjudicate the out-of-range item (no consensus input: must revert)",
+      "hash": "0x137c63a27d670054d058f6ff5babb52340ec36ff48758e1f5993d829771f5f82",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:empty",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:37:24.516Z"
+    },
+    {
+      "label": "[adversarial] REPORTER: withdraw after a verdict (front-running exit)",
+      "hash": "0xec07f511e950fee1ad901b19150199d1916b15c0b9efb98c49241df29842c624",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only PENDING",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:37:31.849Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: appeal a report that is not theirs",
+      "hash": "0xbdf30df5489e586d9336db5b5bf1ca09ec2565c06fe8f2a745f1fc932cf237eb",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:37:36.835Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: settle inside the review window",
+      "hash": "0xe03e69168ddf6460eccb92e5e8c14065490a6d4972ab9c1e5db46e9d98e444c3",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:window still open",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:37:46.107Z"
+    },
+    {
+      "label": "[adversarial] OWNER: close the pool (refund free funds; in-flight reports still settle)",
+      "hash": "0x4ff4da61f9660314b30c4861a4bb677b0668285ae49085c244c0aee99c3f0059",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:37:55.462Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: recover_stuck on the out-of-range report after the timeout (stake must go to the reporter)",
+      "hash": "0xa0faa6d57aa307bc38412ea2e832e94e19a177c6d6c9e8c8bd973e17b406a292",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:42:11.108Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: recover_stuck again (double refund)",
+      "hash": "0xef0dad9726be60c904c1a14c50cd3526bf8c051100f3319ef2b0f594717f1230",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only PENDING",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:42:16.275Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: recover_stuck on an adjudicated report (dodge the forfeit)",
+      "hash": "0xdd7b80303fe63d4cf0380f8168c0960be74bae70c93abb7c4aa4e1dbe0c0f608",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only PENDING",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:42:21.430Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: settle the honest report",
+      "hash": "0xb0ca0aa02af7653585d7bc0ed0ecc34c8035c4d077cc73922c1e58968b8b2d89",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:42:26.555Z"
+    },
+    {
+      "label": "[adversarial] OWNER: settle the injection report",
+      "hash": "0x2746ba8e74a9eb21b96c9f2dc71138fc142ea80900ab4605fc655bbbd28bac2b",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:42:31.550Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: settle again (double payout)",
+      "hash": "0xc998357d0bea995e8b111f0ee9217fc7ba0a3895b9a10d1977ec74db45b0f1bb",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only UPHELD or REJECTED",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:42:37.580Z"
+    },
+    {
+      "label": "[adversarial] ATTACKER: withdraw_free on the closed pool",
+      "hash": "0x7fb9e595d9700819631726e1507ce6fe64230d78e8f5cc0e66407e2dcac393e0",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the pool owner",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:42:48.104Z"
+    },
+    {
+      "label": "[adversarial] OWNER: withdraw_free on the closed pool (forfeits + released rewards, 4.500 GEN)",
+      "hash": "0x513fb1144713e754f848c90aee1cb4da6c4f1d2a66eef55396403458eaf8270c",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:42:57.669Z"
+    },
+    {
+      "label": "[adversarial] OWNER: withdraw_free again",
+      "hash": "0xcd728d5623ada69114ef7318ad1db689d43c7a3e675abc36b64a4b84219b0ac6",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:nothing to withdraw",
+      "pass": true,
+      "run": 2,
+      "at": "2026-10-11T15:43:07.056Z"
+    },
+    {
+      "label": "create_pool \"MMLU · virology (test split) · v0.2\"",
+      "hash": "0x84bc76fce8e2b914c9ed26b3d43e5e2e272a070f5b41649ceefb22d6fd89543c",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T15:45:21.696Z"
     }
   ],
-  "contract": "0xbf2Ab9B2c9344285BF344B166C7E1e16CBB79b94",
-  "deployer": "0xc7AC1469a8dc7E4df3CE2D646dd6D01296548CEd",
-  "deployTx": "0xc8d7b47d19c910b0754cad1a44cb5b8e272529c8c71de8cb41be743c21cb392d",
-  "superseded": [
+  "previous": [
+    {
+      "version": "v0.1.0",
+      "contract": "0xbf2Ab9B2c9344285BF344B166C7E1e16CBB79b94",
+      "deployTx": "0xc8d7b47d19c910b0754cad1a44cb5b8e272529c8c71de8cb41be743c21cb392d",
+      "txs": [
+        {
+          "label": "deploy",
+          "hash": "0xe0b09a4e2e8444b18a55bc559775757a7d8626511853857874a9afb1421c8573",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:14:02.963Z"
+        },
+        {
+          "label": "create_pool \"probe-invalid\"",
+          "hash": "0x2c9c487d5cee67cf6269eacdd6e393dc4e5521a6f9c4822cf9c3d0d66fb974d1",
+          "status": "FINALIZED",
+          "execution": "ERROR",
+          "at": "2026-10-04T11:14:12.082Z"
+        },
+        {
+          "label": "deploy",
+          "hash": "0xc8d7b47d19c910b0754cad1a44cb5b8e272529c8c71de8cb41be743c21cb392d",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:14:56.040Z"
+        },
+        {
+          "label": "create_pool \"MMLU · virology (test split)\"",
+          "hash": "0x079fd044e6f5d5e7176988e7af873533aec1903a26e79ac4b4f27768b3c41f9b",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:15:13.728Z"
+        },
+        {
+          "label": "file_report pool 0 item 77 (wrong_answer C)",
+          "hash": "0x58bc14a13f1d593dda84fb61313fdc0c624f26c8db15f62d455c547ba76c91a4",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:15:23.378Z"
+        },
+        {
+          "label": "file_report pool 0 item 136 (wrong_answer B)",
+          "hash": "0xa692a95499a08843164336ba5be671ae752d8c738a073b15bdbea0b791617aef",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:15:29.296Z"
+        },
+        {
+          "label": "file_report pool 0 item 25 (wrong_answer A)",
+          "hash": "0xb337a35e66eb165b64c94e48874ff6199eff3bad6051b3319ae7662df39ac090",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:15:39.133Z"
+        },
+        {
+          "label": "adjudicate #0",
+          "hash": "0x2605f6aa173f0f274a2817bbe7d5d46601f6a64479eb92c3d887c18e8538d35f",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:16:20.492Z"
+        },
+        {
+          "label": "adjudicate #1",
+          "hash": "0x43b0171574607114b14c34350460b6eb5e9d8ccbd69882bdd038eb2d1c837c82",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:16:25.685442+00:00"
+        },
+        {
+          "label": "adjudicate #2",
+          "hash": "0x7922732f391e444f102589f91ba9b43ae5af871a4add9d8ffec8de7628b05d60",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:17:50.572Z"
+        },
+        {
+          "label": "appeal #1 (pool owner)",
+          "hash": "0x6cb3ab6da831a69820d821d7d77d8f64eecea81a522d4754d518c7b44d54a5a2",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:18:01.027986+00:00"
+        },
+        {
+          "label": "appeal #2",
+          "hash": "0xa0af362d67405bba854b5ce04c6ffdf4a830d124a3c022fe05c362b6913e2553",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:18:31.542Z"
+        },
+        {
+          "label": "settle #0",
+          "hash": "0x88302fe3d6ec275174fddf01f827ef6bfb21857b1722eeaae08306c2f04f9345",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:18:54.353Z"
+        },
+        {
+          "label": "settle #1",
+          "hash": "0xf51177963d7be390a9766fe46cca34ee1c49d35a5e28ff111efc3ec1c2501836",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:19:00.286Z"
+        },
+        {
+          "label": "settle #2",
+          "hash": "0xc45315d72bdb1bed8bdf4f206dd448207802e5720635863a990ef15802bb9ea6",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:19:06.139Z"
+        },
+        {
+          "label": "file_report pool 0 item 77 (wrong_answer C)",
+          "hash": "0xdd9bfa7e72ec04805c76a85dd225a3625d93820ccac58ef7042829ff7f9e75aa",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:19:20.200Z"
+        },
+        {
+          "label": "emitted transfer (settle #0 payout)",
+          "hash": "0x2d3a1050888b3226009bb4ac3d41835a4752f90b7dcd0ef221d759b68a4db2ff",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:19:22.056370+00:00"
+        },
+        {
+          "label": "emitted transfer (settle #1 payout)",
+          "hash": "0xbbeb14d2ac77f99999dec3f362f60d816585d5ca9976dedeae1625ccf4344560",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:19:29.913005+00:00"
+        },
+        {
+          "label": "emitted transfer (refund of the bounced duplicate report)",
+          "hash": "0x1b04e570e9afdf2647a03f5cd766d8bb6bc24d2731cfacd58d0908be65ca155d",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:19:49.206844+00:00"
+        },
+        {
+          "label": "file_report pool 0 item 0 (web app, burner account)",
+          "hash": "0xca85567b550dc2628733191c0e4cc2f9446c513322df349985263f467cf7baa9",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:21:07.366990+00:00"
+        },
+        {
+          "label": "adjudicate #3 (web app)",
+          "hash": "0x4dad0ad95cf0f130da6450318cca3c9ee8f8e1807d7f78e472d9411fffb82fc5",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:21:17.935093+00:00"
+        },
+        {
+          "label": "settle #3",
+          "hash": "0x74290bde8172260fff2d81a5e8e8a90aaeaafb03c73089900eedc0950f03e080",
+          "status": "FINALIZED",
+          "execution": "SUCCESS",
+          "at": "2026-10-04T11:24:39.727Z"
+        }
+      ]
+    },
     {
       "contract": "0x4b1c042Bf3bE802B97E6Bc7273F66DC46c21E300",
       "deployTx": "0xe0b09a4e2e8444b18a55bc559775757a7d8626511853857874a9afb1421c8573",
-      "why": "v1: payable validation reverted; probe tx 0x2c9c487d... proved the attached 1 GEN stays in the contract after a FINALIZED rollback, so v2 refunds instead of reverting"
+      "why": "v1: payable validation reverted; probe tx 0x2c9c487d... proved the attached 1 GEN stays in the contract after a FINALIZED rollback, so v2 refunds instead of reverting",
+      "version": "v0.1.0-pre"
+    },
+    {
+      "version": "v0.2-rc",
+      "contract": "0xe4FbB496F69F44E14E1A4c0b0d8dcdF2b389CcF0",
+      "why": "release candidate deployed before the empty-rows fix; never used"
     }
-  ]
+  ],
+  "deployer": "0xc7AC1469a8dc7E4df3CE2D646dd6D01296548CEd",
+  "deployTx": "0x3060e8145867c4f484ec5b79206212f55c48ad45572c4666feac725d58efdf90",
+  "contract": "0xc1DA30D9bCdE724065EDa6B15f3d9b7D933e5C6E",
+  "adversarial_runs": 2
 }
