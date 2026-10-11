@@ -30,6 +30,7 @@ async function ownerWrite(label, functionName, args, value = 0n) {
   const lr = rc?.consensus_data?.leader_receipt?.[0] ?? rc?.consensus_data?.leader_receipt;
   say(`owner ${label}: ${lr?.execution_result} ${hash}`);
   state.txs.push({ label: `[v0.3 browser e2e] owner ${label}`, hash, status: String(rc.statusName || rc.status), execution: lr?.execution_result, at: new Date().toISOString() });
+  writeFileSync(new URL("../deployments/studionet.json", import.meta.url), JSON.stringify(state, null, 2) + "\n"); // keep the record even if the run dies later
   return hash;
 }
 
@@ -106,9 +107,17 @@ const selectReport = async (rid) => {
   await page.waitForFunction((id) => document.querySelector("#report h3")?.textContent.includes(`#${id} `), { timeout: 30000 }, rid);
   await page.waitForFunction(() => [...document.querySelectorAll("#report button")].some((b) => b.textContent.startsWith("Review final settlement")), { timeout: 60000 });
 };
+async function openFinal() {
+  for (let attempt = 1; ; attempt++) {
+    await clickReportButton("Review final settlement");
+    const ok = await page.waitForSelector("dialog#confirm[open]", { timeout: 45000 }).then(() => true).catch(() => false);
+    if (ok) return;
+    say(`final-settlement dialog did not open (attempt ${attempt}); app log: ${(await logText())[0]}`);
+    if (attempt >= 4) throw new Error("final-settlement dialog never opened");
+  }
+}
 await selectReport(r1);
-await clickReportButton("Review final settlement");
-await page.waitForSelector("dialog#confirm[open]");
+await openFinal();
 const dlg = await page.$eval("dialog#confirm", (d) => d.innerText);
 say(`settle dialog: ${dlg.replace(/\s+/g, " ").slice(0, 900)}`);
 const g0 = await okDisabled();
@@ -131,8 +140,7 @@ if (sent) throw new Error("stale settle was sent");
 
 // ---- settle #r2 through the full dialog
 await selectReport(r2);
-await clickReportButton("Review final settlement");
-await page.waitForSelector("dialog#confirm[open]");
+await openFinal();
 say(`settle dialog #${r2}: ${(await page.$eval("dialog#confirm", (d) => d.innerText)).replace(/\s+/g, " ").slice(0, 600)}`);
 await page.type("#c-typed-in", `SETTLE ${r2}`);
 await page.click("#c-ack-in");

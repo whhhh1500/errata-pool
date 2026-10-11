@@ -63,7 +63,15 @@ function log(msg, hash, cls = "") {
   $("#log").prepend(li);
   return li;
 }
-const read = async (fn, args = []) => plain(await reader.readContract({ address: CONTRACT, functionName: fn, args }));
+// Reads are idempotent: retry a few times, because Studio's gateway sometimes answers without
+// CORS headers ("Failed to fetch"). A read that still fails throws, and every caller then
+// sends nothing (fail closed).
+const read = async (fn, args = []) => {
+  for (let i = 0; ; i++) {
+    try { return plain(await reader.readContract({ address: CONTRACT, functionName: fn, args })); }
+    catch (e) { if (i >= 3) throw e; await new Promise((r) => setTimeout(r, 1500 * (i + 1))); }
+  }
+};
 
 // ---------- account ----------
 async function useBurner() {
@@ -222,6 +230,10 @@ const who = (to, r, p) => {
 };
 const planKey = (r, plan) => JSON.stringify([r.status, r.verdict, r.appealed, r.correct_choice, plan.ok, plan.outcome, (plan.moves || []).map((m) => [m.to, String(m.amount)])]);
 async function finalAction(kind, r, p) {
+  try { return await finalActionInner(kind, r, p); }
+  catch (e) { log(`Not sent: could not read the contract to prepare ${kind} #${r.id} (${e.shortMessage || e.message}). Nothing was signed; try again.`, null, "err"); }
+}
+async function finalActionInner(kind, r, p) {
   const fn = kind === "settle" ? "settle" : "recover_stuck";
   const view = kind === "settle" ? "preview_settle" : "preview_recover";
   const [fresh, plan] = await Promise.all([read("get_report", [BigInt(r.id)]), read(view, [BigInt(r.id)])]);
