@@ -467,6 +467,20 @@
       "pass": true,
       "run": "v0.3-1",
       "at": "2026-10-11T22:01:02.981Z"
+    },
+    {
+      "label": "[v0.3 browser e2e] owner create_pool #4 \"MMLU \u00b7 virology (test split) \u00b7 v0.3 demo\"",
+      "hash": "0x248031ffb4def5b22197acab9641f2896f71e54889fa01912bf3c05f998c9e8a",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:05:52.777Z"
+    },
+    {
+      "label": "[v0.3 browser e2e] owner create_pool #5 \"MMLU \u00b7 virology (test split) \u00b7 v0.3 demo\"",
+      "hash": "0x0bf7c04b6426a950f6a65c0ebd96611c3c9e3970dc100543dbb46f5e2d92d6b7",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T22:08:11.323Z"
     }
   ],
   "previous": [
@@ -2361,6 +2375,31 @@
       "reports": [
         6,
         7
+      ]
+    },
+    {
+      "attempt": 2,
+      "why": "eth_sendRawTransaction from the browser failed 3x with a CORS-less gateway answer (Studio infra); nothing was sent for item 25. Harness now retries 6x with a pause.",
+      "pool": 4,
+      "reports": [
+        8
+      ],
+      "txs": [
+        "0x248031ffb4def5b22197acab9641f2896f71e54889fa01912bf3c05f998c9e8a (owner create_pool #4, also in txs)",
+        "browser burner: file_report #8 0x2cd8\u20268c09, adjudicate #8 0xf03a\u20266c94 (UPHELD)"
+      ]
+    },
+    {
+      "attempt": 3,
+      "why": "Hugging Face answered HTTP 503 during adjudicate #10, so the contract reverted and the report stayed PENDING, as designed. Harness now retries adjudicate.",
+      "pool": 5,
+      "reports": [
+        9,
+        10
+      ],
+      "txs": [
+        "0x0bf7c04b6426a950f6a65c0ebd96611c3c9e3970dc100543dbb46f5e2d92d6b7 (owner create_pool #5, also in txs)",
+        "browser burner: file_report #9 0xfd69\u2026a1b8, adjudicate #9 0x14ed\u20267e81 (UPHELD), file_report #10 0xe12c\u202694db, adjudicate #10 0x9d5f\u2026d791 (reverted: HTTP 503)"
       ]
     }
   ]

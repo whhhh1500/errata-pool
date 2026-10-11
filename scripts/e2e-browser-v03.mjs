@@ -87,14 +87,30 @@ async function fileAndJudge(item, choice, why) {
     }
     say(`attempt ${attempt}: ${last ?? "no result within 300 s"}`);
     if (last && / ok /.test(last)) break;
-    if (attempt >= 3) throw new Error(`file_report item ${item} failed 3 times`);
+    if (attempt >= 6) throw new Error(`file_report item ${item} failed 6 times`);
+    await new Promise((r) => setTimeout(r, 20000));
     await page.waitForFunction(() => !document.body.classList.contains("busy"), { timeout: 400000 });
   }
   await page.waitForFunction((it) => document.querySelector("#report h3")?.textContent.includes(`item ${it}`), { timeout: 60000 }, item);
   const rid = Number((await page.$eval("#report h3", (e) => e.textContent)).match(/#(\d+)/)[1]);
-  await clickReportButton("Adjudicate");
-  await accept();
-  say(await waitLog(new RegExp(`adjudicate #${rid}: .*(ok|reverted)`)));
+  // the item host (Hugging Face) sometimes answers 503: the contract then reverts and the report
+  // stays PENDING (by design); adjudicate again, up to 4 times
+  for (let attempt = 1; ; attempt++) {
+    const before = (await logText()).filter((x) => new RegExp(`adjudicate #${rid}: .*(ok|reverted|error)`, "i").test(x)).length;
+    await page.waitForFunction(() => !document.body.classList.contains("busy"), { timeout: 400000 });
+    await clickReportButton("Adjudicate");
+    await accept();
+    const t0 = Date.now();
+    let hit = null;
+    while (!hit && Date.now() - t0 < 400000) {
+      const hits = (await logText()).filter((x) => new RegExp(`adjudicate #${rid}: .*(ok|reverted|error)`, "i").test(x));
+      if (hits.length > before) hit = hits[0]; else await new Promise((r) => setTimeout(r, 3000));
+    }
+    say(`adjudicate attempt ${attempt}: ${hit}`);
+    if (hit && / ok /.test(hit)) break;
+    if (attempt >= 4) throw new Error(`adjudicate #${rid} failed 4 times`);
+    await new Promise((r) => setTimeout(r, 20000));
+  }
   await page.waitForFunction(() => [...document.querySelectorAll("#report button")].some((b) => b.textContent.startsWith("Review final settlement")), { timeout: 60000 });
   return rid;
 }
