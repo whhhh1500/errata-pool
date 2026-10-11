@@ -21,6 +21,11 @@ Fixing them needs someone to *adjudicate* each contested item.
 * **settle** pays reward + stake to the reporter for an upheld erratum and records it in
   the pool's public errata list, which eval harnesses can export and apply. A rejected
   report forfeits its stake into the pool, which funds future rewards and deters spam.
+* Nothing can get stuck (v0.2). A report that validators cannot adjudicate (item URL
+  gone, no consensus) can be **recovered** by anyone after the pool's adjudication
+  timeout: the stake goes back to the reporter and the reserved reward back to the pool,
+  never to the caller. Funds that return to a pool after it was closed (released rewards,
+  forfeited stakes) stay withdrawable by the owner with **withdraw_free**.
 """
 
 import hashlib
@@ -37,6 +42,9 @@ ITEM_ID_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456
 MAX_ITEM_TEXT = 4000
 MAX_EVIDENCE_TEXT = 3000
 MAX_WINDOW_SECS = 14 * 24 * 3600
+MIN_TIMEOUT_SECS = 60
+MAX_TIMEOUT_SECS = 30 * 24 * 3600
+FENCE_TAGS = ("item", "report", "evidence", "appeal")
 ZERO = Address(b"\x00" * 20)
 
 # report statuses
@@ -46,6 +54,7 @@ REJECTED = "REJECTED"  # validators rejected it (review window running)
 PAID = "PAID"  # final: upheld and paid out, listed in the errata
 FORFEITED = "FORFEITED"  # final: rejected, stake moved into the pool
 WITHDRAWN = "WITHDRAWN"  # reporter withdrew before adjudication
+EXPIRED = "EXPIRED"  # final: could not be adjudicated before the timeout; stake refunded
 
 
 # --------------------------------------------------------------------------- #
@@ -118,7 +127,11 @@ def normalize_item(body: str) -> dict:
     JSON objects with question/choices/answer. Anything else is judged as text.
     """
     try:
-        data = _unwrap(json.loads(body))
+        raw = json.loads(body)
+        if isinstance(raw, dict) and isinstance(raw.get("rows"), list) and not raw["rows"]:
+            # datasets-server answers an out-of-range offset with 200 and no rows: no item
+            return {"text": "", "n_choices": 0, "key": ""}
+        data = _unwrap(raw)
     except (ValueError, TypeError):
         return {"text": html_to_text(body, MAX_ITEM_TEXT), "n_choices": 0, "key": ""}
     if not isinstance(data, dict):
@@ -157,6 +170,17 @@ def fingerprint(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def fence(text: str) -> str:
+    """Neutralise our own prompt delimiters inside party-supplied text, so a report or an
+    evidence page cannot close <report> and smuggle instructions outside the fence."""
+    out = text or ""
+    for t in FENCE_TAGS:
+        for form in (f"<{t}>", f"</{t}>", f"<{t} ", f"</{t} "):
+            out = out.replace(form, form.replace("<", "(").replace(">", ")"))
+            out = out.replace(form.upper(), form.upper().replace("<", "(").replace(">", ")"))
+    return out
+
+
 def build_prompt(rules: str, item_text: str, kind: str, proposed: str, fix: str, justification: str,
                  evidence: str, appeal: str) -> str:
     claim = {
@@ -164,6 +188,7 @@ def build_prompt(rules: str, item_text: str, kind: str, proposed: str, fix: str,
         "ambiguous": "The item is ambiguous: more than one choice is defensibly correct, or none is.",
         "flawed_question": "The question itself is flawed (factual error, missing information or ill-posed).",
     }[kind]
+    fix, justification, evidence, appeal = fence(fix), fence(justification), fence(evidence), fence(appeal)
     ev = f"<evidence>\n{evidence}\n</evidence>\n" if evidence else "(no evidence page)\n"
     ap = f"<appeal>\n{appeal}\n</appeal>\nThe appeal is one side's argument, not a fact.\n" if appeal else ""
     return (
@@ -236,6 +261,7 @@ class Pool:
     reward: u256
     min_stake: u256
     window_secs: u256
+    timeout_secs: u256  # PENDING reports older than this can be recovered by anyone
     balance: u256  # unreserved funds
     reserved: u256  # rewards reserved for reports in flight
     open: bool
@@ -271,6 +297,7 @@ class Report:
     appealed: bool
     appeal_by: Address
     appeal_reason: str
+    evidence_used: bool
 
 
 def _now() -> int:
@@ -287,8 +314,10 @@ class ErrataPool(gl.Contract):
     total_paid: u256
     total_forfeited: u256
     total_bounced: u256  # value refunded from invalid payable calls
+    total_recovered: u256  # stakes refunded from expired (stuck) reports
 
     def __init__(self) -> None:
+        self.total_recovered = u256(0)
         self.pool_count = u256(0)
         self.report_count = u256(0)
         self.total_paid = u256(0)
@@ -313,7 +342,8 @@ class ErrataPool(gl.Contract):
         return {"ok": False, "error": error, "refunded": int(value)}
 
     @gl.public.write.payable
-    def create_pool(self, name: str, template: str, rules: str, reward: int, min_stake: int, window_secs: int) -> dict:
+    def create_pool(self, name: str, template: str, rules: str, reward: int, min_stake: int, window_secs: int,
+                    timeout_secs: int) -> dict:
         funds = gl.message.value
         if not (template.startswith("https://") or template.startswith("http://")) or "{id}" not in template or len(template) > 400:
             return self._bounce("template must be an http(s) URL containing {id}")
@@ -323,12 +353,15 @@ class ErrataPool(gl.Contract):
             return self._bounce("fund the pool with at least one reward")
         if window_secs < 0 or window_secs > MAX_WINDOW_SECS:
             return self._bounce("review window must be 0..14 days")
+        if timeout_secs < MIN_TIMEOUT_SECS or timeout_secs > MAX_TIMEOUT_SECS:
+            return self._bounce("adjudication timeout must be 60 s .. 30 days")
         if not name.strip():
             return self._bounce("name the pool")
         pid = self.pool_count
         self.pools[pid] = Pool(
             owner=gl.message.sender_address, name=name.strip()[:120], template=template, rules=rules.strip()[:600],
-            reward=u256(reward), min_stake=u256(min_stake), window_secs=u256(window_secs), balance=funds,
+            reward=u256(reward), min_stake=u256(min_stake), window_secs=u256(window_secs),
+            timeout_secs=u256(timeout_secs), balance=funds,
             reserved=u256(0), open=True, reports=u256(0), errata=u256(0), paid=u256(0), created_at=u256(_now()),
         )
         self.pool_count = pid + u256(1)
@@ -345,8 +378,30 @@ class ErrataPool(gl.Contract):
         return {"ok": True, "id": pool_id}
 
     @gl.public.write
+    def withdraw_free(self, pool_id: int, amount: int) -> int:
+        """Owner takes back unreserved funds (amount 0 = all), open or closed pool.
+
+        Rewards reserved for reports in flight are never withdrawable, so reporters stay
+        covered. After close_pool, this is how the owner collects forfeited stakes and
+        released rewards that come back to the pool later."""
+        p = self._pool(pool_id)
+        if gl.message.sender_address != p.owner:
+            raise gl.vm.UserError("only the pool owner can withdraw")
+        if amount < 0:
+            raise gl.vm.UserError("amount must be >= 0")
+        out = p.balance if amount == 0 else u256(amount)
+        if out > p.balance:
+            raise gl.vm.UserError(f"only {int(p.balance)} wei is free; the rest is reserved for reports in flight")
+        if out == u256(0):
+            raise gl.vm.UserError("nothing to withdraw")
+        p.balance -= out
+        _Recipient(p.owner).emit_transfer(value=out)
+        return int(out)
+
+    @gl.public.write
     def close_pool(self, pool_id: int) -> None:
-        """Stop new reports and refund the unreserved balance. Reports in flight still settle."""
+        """Stop new reports and refund the unreserved balance. Reports in flight still settle;
+        whatever returns to the pool later is collected with withdraw_free."""
         p = self._pool(pool_id)
         if gl.message.sender_address != p.owner:
             raise gl.vm.UserError("only the pool owner can close it")
@@ -404,7 +459,7 @@ class ErrataPool(gl.Contract):
             fix=fix.strip()[:300], justification=justification.strip()[:1200], evidence_url=evidence_url[:400],
             stake=stake, reserved=p.reward, status=PENDING, verdict="", correct_choice="", reason="", first_verdict="",
             item_text="", item_hash="", published_key="", filed_at=u256(_now()), adjudicated_at=u256(0),
-            appealed=False, appeal_by=ZERO, appeal_reason="",
+            appealed=False, appeal_by=ZERO, appeal_reason="", evidence_used=False,
         )
         self.active[key] = rid + u256(1)
         self.report_count = rid + u256(1)
@@ -424,16 +479,42 @@ class ErrataPool(gl.Contract):
         if r.stake > u256(0):
             _Recipient(r.reporter).emit_transfer(value=r.stake)
 
+    @gl.public.write
+    def recover_stuck(self, report_id: int) -> str:
+        """Unstick a PENDING report that could not be adjudicated within the pool's timeout.
+
+        Callable by anyone (the reporter may be gone, the owner may want the reservation
+        back). It is deterministic and the caller gains nothing: the stake goes to the
+        reporter and the reserved reward to the pool's free balance. Adjudicated reports are
+        never recoverable: they settle through the normal path."""
+        r = self._report(report_id)
+        if r.status != PENDING:
+            raise gl.vm.UserError(f"report is {r.status}; only PENDING reports can be recovered")
+        p = self.pools[r.pool_id]
+        due = int(r.filed_at) + int(p.timeout_secs)
+        if _now() < due:
+            raise gl.vm.UserError(f"not stuck yet: adjudication is still possible until {due}")
+        self._release(p, r)
+        r.status = EXPIRED
+        r.reason = "[recovered] not adjudicated before the pool's timeout; stake refunded"
+        del self.active[f"{int(r.pool_id)}:{r.item_id}"]
+        self.total_recovered += r.stake
+        if r.stake > u256(0):
+            _Recipient(r.reporter).emit_transfer(value=r.stake)
+        return EXPIRED
+
     # ------------------------------------------------------------------ #
     # non-deterministic adjudication                                     #
     # ------------------------------------------------------------------ #
-    def _judge(self, p: Pool, r: Report, snapshot: str, appeal: str) -> dict:
+    def _judge(self, p: Pool, r: Report, snapshot: str, appeal: str, use_evidence: bool) -> dict:
         """Run the adjudication under validator consensus. With `snapshot` set (appeals) the
         item is not re-fetched: the stored text is judged, so a silent upstream patch cannot
         change the outcome."""
         url = item_url(p.template, r.item_id)
         rules, kind, proposed = p.rules, r.kind, r.proposed
-        fix, justification, evidence_url = r.fix, r.justification, r.evidence_url
+        fix, justification = r.fix, r.justification
+        # The evidence page is reporter-controlled and may serve validators different bytes.
+        evidence_url = r.evidence_url if use_evidence else ""
         published_key = r.published_key
 
         def leader() -> dict:
@@ -483,7 +564,12 @@ class ErrataPool(gl.Contract):
         if r.status != PENDING:
             raise gl.vm.UserError(f"report is {r.status}, not PENDING")
         p = self.pools[r.pool_id]
-        v = self._judge(p, r, "", "")
+        # A flaky evidence page could block consensus and steer the report into a free
+        # timeout refund. In the second half of the timeout anyone can therefore adjudicate on
+        # the item and the written justification alone.
+        use_evidence = bool(r.evidence_url) and _now() < int(r.filed_at) + int(p.timeout_secs) // 2
+        v = self._judge(p, r, "", "", use_evidence)
+        r.evidence_used = use_evidence
         r.item_text = v["item_text"]
         r.item_hash = v["item_hash"]
         r.published_key = v["published_key"]
@@ -516,7 +602,9 @@ class ErrataPool(gl.Contract):
             raise gl.vm.UserError("give a reason (at least 10 characters)")
         side = "pool owner (benchmark maintainer)" if r.status == UPHELD else "reporter"
         statement = f"The {side} appeals the first verdict ({r.verdict}: {r.reason}). Their argument: {reason.strip()[:600]}"
-        v = self._judge(p, r, r.item_text, statement)
+        # appeals judge the stored snapshot and the written statements only: no web input that
+        # either party could make flaky to sink the other side's appeal
+        v = self._judge(p, r, r.item_text, statement, False)
         r.appealed = True
         r.appeal_by = sender
         r.appeal_reason = reason.strip()[:600]
@@ -552,11 +640,10 @@ class ErrataPool(gl.Contract):
         return r.status
 
     def _release(self, p: Pool, r: Report) -> None:
+        """A reserved reward goes back to the pool's free balance (open or closed); the owner
+        collects it with withdraw_free."""
         p.reserved -= r.reserved
-        if p.open:
-            p.balance += r.reserved
-        else:
-            _Recipient(p.owner).emit_transfer(value=r.reserved)
+        p.balance += r.reserved
 
     # ------------------------------------------------------------------ #
     # views                                                              #
@@ -575,7 +662,7 @@ class ErrataPool(gl.Contract):
         return {
             "id": pid, "owner": p.owner.as_hex, "name": p.name, "template": p.template, "rules": p.rules,
             "reward": int(p.reward), "min_stake": int(p.min_stake), "window_secs": int(p.window_secs),
-            "balance": int(p.balance), "reserved": int(p.reserved), "open": p.open, "reports": int(p.reports),
+            "timeout_secs": int(p.timeout_secs), "balance": int(p.balance), "reserved": int(p.reserved), "open": p.open, "reports": int(p.reports),
             "errata": int(p.errata), "paid": int(p.paid), "created_at": int(p.created_at),
         }
 
@@ -590,6 +677,9 @@ class ErrataPool(gl.Contract):
             "reason": r.reason, "first_verdict": r.first_verdict, "item_text": r.item_text, "item_hash": r.item_hash,
             "published_key": r.published_key, "filed_at": int(r.filed_at), "adjudicated_at": int(r.adjudicated_at),
             "window_end": window_end, "appealed": r.appealed,
+            "evidence_used": r.evidence_used,
+            "evidence_until": int(r.filed_at) + int(p.timeout_secs) // 2,
+            "recoverable_at": int(r.filed_at) + int(p.timeout_secs) if r.status == PENDING else 0,
             "appeal_by": r.appeal_by.as_hex if r.appeal_by != ZERO else "", "appeal_reason": r.appeal_reason,
         }
 
@@ -647,4 +737,4 @@ class ErrataPool(gl.Contract):
     def get_stats(self) -> dict:
         return {"pools": int(self.pool_count), "reports": int(self.report_count),
                 "total_paid": int(self.total_paid), "total_forfeited": int(self.total_forfeited),
-                "total_bounced": int(self.total_bounced)}
+                "total_bounced": int(self.total_bounced), "total_recovered": int(self.total_recovered)}

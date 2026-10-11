@@ -15,10 +15,10 @@ def _hex(addr) -> str:
     return str(addr).lower()
 
 
-def mk_pool(vm, c, owner, funds=10 * GEN, reward=2 * GEN, stake=GEN // 2, window=3600):
+def mk_pool(vm, c, owner, funds=10 * GEN, reward=2 * GEN, stake=GEN // 2, window=3600, timeout=86400):
     vm.sender = owner
     vm.value = funds
-    res = c.create_pool("MMLU virology", TEMPLATE, RULES, reward, stake, window)
+    res = c.create_pool("MMLU virology", TEMPLATE, RULES, reward, stake, window, timeout)
     vm.value = 0
     assert res["ok"], res
     return res["id"]
@@ -39,23 +39,24 @@ def bounced(res, msg):
 
 
 def test_empty_state(pool_c):
-    assert pool_c.get_stats() == {"pools": 0, "reports": 0, "total_paid": 0, "total_forfeited": 0, "total_bounced": 0}
+    assert pool_c.get_stats() == {"pools": 0, "reports": 0, "total_paid": 0, "total_forfeited": 0, "total_bounced": 0, "total_recovered": 0}
     assert pool_c.list_pools() == []
 
 
 def test_create_pool_validation_refunds_instead_of_reverting(direct_vm, pool_c, direct_alice):
     direct_vm.sender = direct_alice
     direct_vm.value = GEN
-    bounced(pool_c.create_pool("x", "https://h/no-placeholder", "", GEN, 0, 60), "containing {id}")
-    bounced(pool_c.create_pool("x", "ftp://h/{id}", "", GEN, 0, 60), "containing {id}")
-    bounced(pool_c.create_pool("x", TEMPLATE, "", 2 * GEN, 0, 60), "at least one reward")
-    bounced(pool_c.create_pool("x", TEMPLATE, "", 0, 0, 60), "reward must be")
-    bounced(pool_c.create_pool("x", TEMPLATE, "", GEN, 0, 10**8), "review window")
-    bounced(pool_c.create_pool("  ", TEMPLATE, "", GEN, 0, 60), "name the pool")
-    assert pool_c.get_stats()["pools"] == 0 and pool_c.get_stats()["total_bounced"] == 6 * GEN
+    bounced(pool_c.create_pool("x", "https://h/no-placeholder", "", GEN, 0, 60, 3600), "containing {id}")
+    bounced(pool_c.create_pool("x", "ftp://h/{id}", "", GEN, 0, 60, 3600), "containing {id}")
+    bounced(pool_c.create_pool("x", TEMPLATE, "", 2 * GEN, 0, 60, 3600), "at least one reward")
+    bounced(pool_c.create_pool("x", TEMPLATE, "", 0, 0, 60, 3600), "reward must be")
+    bounced(pool_c.create_pool("x", TEMPLATE, "", GEN, 0, 10**8, 3600), "review window")
+    bounced(pool_c.create_pool("  ", TEMPLATE, "", GEN, 0, 60, 3600), "name the pool")
+    bounced(pool_c.create_pool("x", TEMPLATE, "", GEN, 0, 60, 30), "adjudication timeout")
+    assert pool_c.get_stats()["pools"] == 0 and pool_c.get_stats()["total_bounced"] == 7 * GEN
     direct_vm.value = 0
     with direct_vm.expect_revert("at least one reward"):  # zero-value calls revert normally
-        pool_c.create_pool("x", TEMPLATE, "", GEN, 0, 60)
+        pool_c.create_pool("x", TEMPLATE, "", GEN, 0, 60, 3600)
 
 
 def test_file_report_validation_and_reservation(direct_vm, pool_c, direct_alice, direct_bob):
