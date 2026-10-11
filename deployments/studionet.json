@@ -7,6 +7,466 @@
       "status": "5",
       "execution": "SUCCESS",
       "at": "2026-10-11T21:42:54.242Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: create pool A: MMLU virology, 6 GEN, reward 2, min stake 0.5, window 600s, timeout 900s",
+      "hash": "0xb7e93971a0ec0cd22824a14a79ef8222ae4fb0175afec37dd1a01d8064b3508f",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:43:17.166Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: owner files into own pool (refused, refunded in-tx)",
+      "hash": "0xe26bd39d5e81f11729c5bc6b1b0e38c1c8515e60554b4fb05a9759be5bb54bce",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "bounce:pool owner cannot report",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:43:23.344Z"
+    },
+    {
+      "label": "[v0.3-1] REPORTER: honest erratum on item 77 (key B Endemic, should be C Pandemic)",
+      "hash": "0xc71353b2ab15c821a6f05560f1bac48c0d9ad4c24293d876e4302814d6f54287",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:43:28.610Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: false report on item 3 (key B is right) with an injection attempt",
+      "hash": "0xbefbb0f9499d0f05f0b5225a76ab44413f246b74eeb883c4ec11351b29b85af2",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:43:34.105Z"
+    },
+    {
+      "label": "[v0.3-1] REPORTER: report on item 999999 (the dataset has no such row)",
+      "hash": "0xb075abc7e0e7a088d9bbe35629807e327bc7ecb7e8afa9244ad318d63838ad4c",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:43:40.620Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: duplicate report on item 77 while it is open",
+      "hash": "0xd018f5d3a64e66353c09f1fd8b2fac74862144d96b7ad20acfaf2b078730bdfe",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "bounce:already has an open",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:43:45.777Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: create pool B: flaky source (httpbin.org/status/{id}), 3 GEN, reward 1, min stake 0.25, window 0, timeout 900s",
+      "hash": "0xa4645abdd38a0d44c76ad7f4ebd2e91563f43fa1df955b82c5912715d8b58607",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:43:51.177Z"
+    },
+    {
+      "label": "[v0.3-1] REPORTER: report on pool B item 503 with an evidence URL that also answers 503",
+      "hash": "0xd545e249823eed3888f09fb082692af8ee73c1c01962ce6142904f1bad745052",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:43:56.496Z"
+    },
+    {
+      "label": "[v0.3-1] REPORTER: report on pool B item 404 (source answers HTTP 404)",
+      "hash": "0x8ed7fe441f152d3576c1efb22e6c1bec5a67fd09296f3638a208aa8366f4923d",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:44:06.313Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: create pool C: MMLU virology, 1 GEN, reward 1, min stake 0.25, window 0, timeout 900s",
+      "hash": "0xea85dffa7a550f3624f898f06b0cce5466ede3a1aa7d10b140971be2f5ff135c",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:44:15.843Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: grief: report pool C item \"not-a-row\" (datasets-server answers 422) to lock the only reward",
+      "hash": "0xcb15e5d58333d020f379a123eaed1b01e0574ee9e233ceb936dafd9a274c5c9a",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:44:20.901Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: adjudicate pool B item 503 (item and evidence fetch fail -> must revert, stays PENDING)",
+      "hash": "0x269b890fca9c710159e7ad438a1aa0e67e359cec2b6a1f2d826eaf0c225c0883",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:44:31.457Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: recover_stuck before the deadline",
+      "hash": "0x95c18202695a166f36735baa615d9de257475d8c360ff932e188dfdc06006334",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:not stuck yet",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:44:40.924Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: withdraw the honest reporter's report",
+      "hash": "0x249531f8e8d7af334fdef51ff860566f81ccd23c14b3137d4710e5e333817071",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the reporter",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:44:46.103Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: close someone else's pool",
+      "hash": "0xf580e6c34338d967ba249a9836ba55101b567fb4443e67a38ed5af66fe2a1aae",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the pool owner",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:44:51.563Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: withdraw_free from someone else's pool",
+      "hash": "0x52b38925a22474cff70d64044613f1f9473cade3d20889952e94e6c96f0010b0",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the pool owner",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:44:56.759Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: claim with no credit",
+      "hash": "0x35b4b0c575aea7117117ef898ae10dd63b6fb298d08da60e420dd41a6360ecce",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:nothing to claim",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:45:06.021Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: adjudicate the honest report (anyone may)",
+      "hash": "0x4f82855f97f5875a5f38755b88da66b13b0ecee9c93b14e76b0a32073c988ded",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:45:41.200Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: settle inside the review window",
+      "hash": "0x5822747698db052896c7600760ba90fc6d51345de83844bf53f89de0dc20ac36",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:window still open",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:45:50.708Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: adjudicate the false/injection report",
+      "hash": "0xc91d1e08ffcf73b104111021a2655e35a3458b280ea8651edc5337bdce9b5566",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:46:12.426Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: adjudicate item 999999 (empty row -> VOID at once)",
+      "hash": "0xe824a5970e46f905a070c0e00a39c7ce6ebc7caf062d021df25de1d5aa3afe1d",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:46:25.995Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: adjudicate pool B item 404 (HTTP 404 -> VOID at once)",
+      "hash": "0x395bdddcc1a97abc24e3c4cd3f33d603894499818b138f2b06f3c7072bc33c9b",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:46:35.508Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: adjudicate the griefing report (HTTP 422 -> VOID at once, no wait for the deadline)",
+      "hash": "0x8bc6b978c5215e01cd13abe7333865e95dc73804edfec4cac57c926794ef4973",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:46:44.785Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: claim the griefing stake refund",
+      "hash": "0xc927c0b10761a17b7aeb842ec824c61fa8a4e856f1c520aa3af4a5d7b1e3a016",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:46:53.381Z"
+    },
+    {
+      "label": "[v0.3-1] REPORTER: withdraw after a verdict (exit to dodge the outcome)",
+      "hash": "0x7400a970a1031bb285fdade4417f086deb0865b89490baae157f4098864e6aca",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only PENDING",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:47:05.409Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: appeal a report that is not theirs",
+      "hash": "0x4d7e57e05bf5111e0c287951d49b9bd408558cdd217049520d34cf8abb87234f",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only the",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:47:10.460Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: settle a VOID report",
+      "hash": "0x93a6669195e4deebf2d4a436ed5afacc6a634602332006eb11880a4e6ff86acc",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only UPHELD or REJECTED",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:47:19.875Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: close pool A (free funds -> owner credit; in-flight reports still settle)",
+      "hash": "0xef32d5d24b67e53e2af6df4701c22518fd663cb356f07f557ec48a5217b330c3",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:47:29.247Z"
+    },
+    {
+      "label": "[v0.3-1] REPORTER: claim the VOID refunds",
+      "hash": "0x489236d598b5d7043c4171344b14ec5476defba9219dcbfbe2d13dadfa4f43ad",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:47:36.007Z"
+    },
+    {
+      "label": "[v0.3-1] REPORTER: claim again (double claim)",
+      "hash": "0xffec12a12f6f71d2d3181fa4b5d172f959dba10f4366aeea7da6efa3307e6589",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:nothing to claim",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:47:41.327Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: adjudicate the stuck report after its deadline",
+      "hash": "0x2139d47984d241aa4bf2c6c13f88b43f385b03d8f6a6084ebee6036950d7e3e5",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:deadline passed",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:59:07.512Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: recover_stuck the fetch-failure report (a stranger triggers; stake -> reporter)",
+      "hash": "0x81767555e00594a34e687aea91eb9896f4eb07f33064760b95256d4829a2eff1",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:59:19.441Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: recover_stuck again (double refund)",
+      "hash": "0xd96467f5ed3190f679bc1c40f24fa53865c04c01aa6d90b075fe6bd6686d6c81",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only PENDING",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:59:28.448Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: recover_stuck an adjudicated report (dodge the forfeit)",
+      "hash": "0x7b8ad12c0dc56ef8ee3aef98efb4510c1520ce4b917bce5e4db5c1c5c1cedb00",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only PENDING",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:59:33.430Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: settle report #0 (anyone may; recipient fixed by the contract)",
+      "hash": "0x15f6a4d2b16df6704ca963f106d07b4f57f3387b5a749d621c3fbb1fbcf0d9ab",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:59:46.555Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: settle report #0 again (double settle)",
+      "hash": "0xeefffe82867c704ac4e88de4eeb968cca1f793e3c52b6fcf57d39161cb13dba7",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only UPHELD or REJECTED",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:59:51.578Z"
+    },
+    {
+      "label": "[v0.3-1] REPORTER: settle report #1 on the closed pool",
+      "hash": "0x1c2574ce3f81ad015f24e8b6ad29895feca42153078838197b0607603265f0c0",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T21:59:56.634Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: settle report #1 again (double settle)",
+      "hash": "0x50103fb44000a1d644fdd7fd78b3cd661dbc389b6a97381d7c663940fe2e63b6",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:only UPHELD or REJECTED",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T22:00:05.882Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: withdraw_free on the closed pool (nothing left there: it is all in the owner's credit)",
+      "hash": "0xa459716dafc5bae3b34f5d15ebf858f9bae2447a54da4ba5ea4dfcad14ccb87b",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:nothing to withdraw",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T22:00:14.716Z"
+    },
+    {
+      "label": "[v0.3-1] ATTACKER: claim (attacker has no credit)",
+      "hash": "0x43ebc3dbd6e5c8ccc637d32c25d63f1583e73a0ea344ac37d1cc359c555e9393",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:nothing to claim",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T22:00:25.272Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: owner claims 4.500 GEN (close refund + forfeits after close)",
+      "hash": "0x7001c304d0a8663cd18c6c65024c235d2eea52cffb5fdf9465982fc8f2878723",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T22:00:30.361Z"
+    },
+    {
+      "label": "[v0.3-1] REPORTER: reporter claims 2.750 GEN",
+      "hash": "0xcdcb3c90fd8ae3b39e645d9f7911fc3ed5c972ae154b62597a4120e304ceaa1d",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T22:00:38.016Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: close pool B",
+      "hash": "0x76e1dae8b3ee464d70044919973fcbcbbad916b38ca552493e99dec9c2146221",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T22:00:43.202Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: close pool C",
+      "hash": "0xb584c090970b7a6fc5acacf07640f028390e9adc2b9f8d3c16388f297b6b1737",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T22:00:52.793Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: claim pool B + C refunds",
+      "hash": "0xd920836078eb99fa2206633f7de53a5bff10099116ca49ee0b7a6b02f40f8d6e",
+      "status": "5",
+      "execution": "SUCCESS",
+      "expect": "ok",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T22:00:57.842Z"
+    },
+    {
+      "label": "[v0.3-1] OWNER: claim again (double claim)",
+      "hash": "0xf85187e82fa8042b1eb3bfb75c563f771bfdb737ac314c6a07d0037633ecd70e",
+      "status": "5",
+      "execution": "ERROR",
+      "expect": "revert:nothing to claim",
+      "pass": true,
+      "run": "v0.3-1",
+      "at": "2026-10-11T22:01:02.981Z"
     }
   ],
   "previous": [
@@ -1886,7 +2346,7 @@
     }
   ],
   "deployer": "0xc7AC1469a8dc7E4df3CE2D646dd6D01296548CEd",
-  "v03_runs": 0,
+  "v03_runs": 1,
   "contract": "0xe6451E2d039Efac708639a38F64Dc2EF69Af0232",
   "deployTx": "0x9e1cab473d2e86b248e741c7357d278ac967f4e8cfa358cee984286fc6ddc055"
 }
