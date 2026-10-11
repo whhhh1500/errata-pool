@@ -15,11 +15,25 @@ ErrataPool turns this into a market with a referee:
 | **Anyone** | calls **settle**: an upheld erratum pays reward + stake to the reporter and is appended to the pool's public **errata list** (exportable JSON for eval harnesses); a rejected report's stake is forfeited **into the pool**, which funds future rewards and prices out spam |
 
 **Live app:** https://whhhh1500.github.io/errata-pool/ (demo account funded by the Studio faucet, or any browser wallet)
-**Contract (GenLayer Studio / studionet):** [`0xbf2Ab9B2c9344285BF344B166C7E1e16CBB79b94`](https://explorer-studio.genlayer.com/address/0xbf2Ab9B2c9344285BF344B166C7E1e16CBB79b94) · [open in Studio](https://studio.genlayer.com/?import-contract=0xbf2Ab9B2c9344285BF344B166C7E1e16CBB79b94)
+**Contract v0.2 (GenLayer Studio / studionet):** [`0xc1DA30D9bCdE724065EDa6B15f3d9b7D933e5C6E`](https://explorer-studio.genlayer.com/address/0xc1DA30D9bCdE724065EDa6B15f3d9b7D933e5C6E) · [open in Studio](https://studio.genlayer.com/?import-contract=0xc1DA30D9bCdE724065EDa6B15f3d9b7D933e5C6E) (v0.1 at `0xbf2Ab9B2…9b94` is kept for its recorded run below)
+
+## v0.2: changes from the steward review
+
+| requested | what changed | evidence |
+|---|---|---|
+| **Secure recovery for reports stuck PENDING** | New `recover_stuck(id)`. Each pool sets an adjudication timeout (60 s to 30 days). After it, **anyone** can recover a report that is still PENDING: the stake goes to the **reporter**, the reserved reward goes back to the **pool**, and the caller gets nothing. Adjudicated reports can never be recovered, so a reporter cannot dodge a forfeit. Closing the hole this opens: a reporter-controlled evidence page that splits validators could otherwise force a free refund, so from half the timeout on, `adjudicate` ignores the evidence page, and appeals never fetch it. An out-of-range item (HF returns 200 with no rows) is now "no item" instead of being judged. | `tests/direct/test_adversarial.py::test_stuck_report_recovery_refunds_reporter_not_caller`, `test_adjudicated_reports_are_never_recoverable`, `test_flaky_evidence_page_cannot_force_a_free_refund`, `test_appeal_ignores_the_evidence_page`; live rows 7, 12, 17-19 of [evidence/adversarial-e2e.md](evidence/adversarial-e2e.md) |
+| **Withdrawable forfeited stakes after pool closure** | Everything that returns to a pool (forfeited stakes, released rewards) now always lands in its free balance. A new owner-only `withdraw_free(pool, amount)` (0 = all) works on open or closed pools and can never touch rewards reserved for reports in flight. | `test_forfeits_after_close_are_withdrawable_by_owner_only`, `test_withdraw_free_never_touches_rewards_reserved_for_reporters`; live rows 23-25 (owner collects 4.5 GEN from a closed pool, attacker refused) |
+| **Stronger frontend confirmation** | Every write opens a confirmation dialog: contract, network, sender, the exact call, attached GEN and what can happen to it (upheld/rejected payouts, who receives a recovery). Closing a pool and withdrawing need the pool id typed in. Pre-flight checks mirror the contract (min stake, balance, owner self-report, duplicate item, choice letter, timeout range), so a bad call never reaches the wallet. Cancel signs nothing, and a busy lock blocks double submits. New buttons: *Recover stuck report*, *Withdraw free funds*. | [media/confirm.png](media/confirm.png); `scripts/e2e-browser.mjs` checks the pre-flight block, cancel and confirm against the live contract (report #6) |
+| **Adversarial end-to-end tests** | 12 new direct-mode tests with a ledger that hooks every `EthSend`, so they check real transfers: prompt injection in the report and in the evidence page (our delimiters are neutralised by `fence()`), an access-control matrix, forged leader results, and a randomized run (3 seeds × 160 ops across 2 pools and 3 actors) that checks `native balance == get_liabilities()` after every step and ends with every report final and 0 wei left. A live run on Studio with three parties (owner + two fresh faucet keys) sends 25 real transactions, including every attack, and checks each one. | `tests/direct/test_adversarial.py`; `scripts/adversarial-e2e.mjs` → [evidence/adversarial-e2e.md](evidence/adversarial-e2e.md) run 2: **25/25**, contract balance 0 = liabilities 0 |
+
+### Threat model (what is and is not covered)
+
+* **Covered:** the caller of recovery or settlement cannot redirect funds. A reporter cannot exit after a verdict (`withdraw_report` is PENDING-only) or recover an adjudicated report. The owner cannot report into its own pool from the same address, withdraw reserved rewards, or appeal twice. Settle cannot pay twice. Forged leader verdicts, choices or item hashes are rejected by the validator. Injected `</report>`-style delimiters are neutralised. Invalid payable calls are refunded.
+* **Residual:** an owner who controls the item host could take it offline to force a timeout. The reporter then gets the stake back but no reward. Use pools whose item source is a public dataset host (HF). An owner using a second address to self-report only pays itself out of its own pool. Verdict quality is bounded by the validators' LLMs; the appeal and the strict rule for `wrong_answer` (the letters must match) limit the damage.
 
 ![ErrataPool web app showing the MMLU virology pool, its accepted errata and an appealed report](media/app.png)
 
-## Recorded live run (real MMLU items, real Hugging Face fetches)
+## Recorded live run on the v0.1 contract (real MMLU items, real Hugging Face fetches)
 
 Pool #0, "MMLU · virology (test split)": 8 GEN, 2 GEN per erratum, 0.5 GEN minimum stake, 180 s review window. Sponsor `0xc7AC…8CEd`, reporter `0x1FD9…099d`. Every transaction below is **FINALIZED with leader execution SUCCESS**, verified with [genlayer-doctor](https://github.com/whhhh1500/genlayer-doctor) (full output in [`evidence/gldoctor-explain.txt`](evidence/gldoctor-explain.txt)).
 
@@ -65,7 +79,7 @@ After the run, `node scripts/errata.mjs solvency` gives `held 5 GEN == owed 5 GE
 * **The model never moves money directly.** The LLM returns a verdict and a letter; deterministic rules decide everything else. For `wrong_answer`, `VALID` stands only if the validators' letter equals the reporter's letter and differs from the published key. Payout amounts and recipients come from the pool, not the model.
 * **One deterministic item adapter on every validator.** `normalize_item` maps HF datasets-server rows, plain `{question, choices, answer}` JSON, ARC-style `{choices:{text}, answerKey}` objects, and 0-based, numeric-string or letter answers into one canonical text with an explicit "Published answer key: B) …" line. The validators' fingerprint is taken over this text, so key order or envelope differences cannot split consensus. The web app uses the same adapter for its "preview as validators see it" button (`frontend/src/normalize.js`).
 * **Appeals are judged on the snapshot.** The item text judged at adjudication is stored. An appeal re-judges *that* text. A maintainer cannot silently patch the upstream item (or take it offline) to defeat an appeal. This is covered by a test that makes the item URL return 404 during the appeal.
-* **Payable calls never revert once value is attached.** On Studio we observed that a reverted payable transaction rolls back storage but **keeps the attached GEN in the contract**: probe tx `0x2c9c487d5cee67cf6269eacdd6e393dc4e5521a6f9c4822cf9c3d0d66fb974d1` on the superseded v1 contract (`FINALIZED`, leader `ERROR`, and the contract balance went from 0 to 1 GEN). In v2, `create_pool`, `fund_pool` and `file_report` are deterministic only. Invalid input returns `{"ok": false, "error": …}` and refunds the value in the same transaction (see the duplicate report above). All web and LLM work happens in non-payable calls (`adjudicate`, `appeal`), so a fetch failure only leaves the report `PENDING` to be retried or withdrawn.
+* **Payable calls never revert once value is attached.** On Studio we observed that a reverted payable transaction rolls back storage but **keeps the attached GEN in the contract**: probe tx `0x2c9c487d5cee67cf6269eacdd6e393dc4e5521a6f9c4822cf9c3d0d66fb974d1` on the superseded v1 contract (`FINALIZED`, leader `ERROR`, and the contract balance went from 0 to 1 GEN). In v2, `create_pool`, `fund_pool` and `file_report` are deterministic only. Invalid input returns `{"ok": false, "error": …}` and refunds the value in the same transaction (see the duplicate report above). All web and LLM work happens in non-payable calls (`adjudicate`, `appeal`), so a fetch failure only leaves the report `PENDING` to be retried, withdrawn, or (after the pool's timeout) recovered by anyone.
 * **Solvency is checkable.** `get_liabilities()` returns what the contract owes (free pool funds + reserved rewards + stakes in flight). `scripts/errata.mjs solvency` compares it with the native balance.
 * **Prompt-injection hygiene.** The report, evidence and appeal are interested parties' text. They are fenced in `<report>`, `<evidence>` and `<appeal>` tags, and the prompt says to treat them as claims, never instructions. Item ids are restricted to `[A-Za-z0-9._:-]{1,64}`, so a reporter cannot smuggle query parameters (`1&length=100`) into the template.
 * **Anti-spam economics.** A rejected stake grows the pool, an accepted item can never be paid twice, and a rejected item can be re-reported with a better argument.
@@ -77,8 +91,10 @@ contracts/errata_pool.py       Intelligent Contract (py-genlayer, pinned runner 
 frontend/                      Vite + genlayer-js web app (built to docs/ for GitHub Pages)
 scripts/errata.mjs             CLI: deploy, pools, reports, adjudicate, appeal, settle, solvency
 scripts/e2e-browser.mjs        headless browser run of the web app against the live contract
-tests/unit/                    17 pure tests of the adapter, verdict parsing, rules, consensus key
-tests/direct/                  15 GenVM direct-mode tests (mocked web + LLM, run_validator)
+tests/unit/                    20 pure tests of the adapter, prompt fencing, verdict parsing, rules, consensus key
+tests/direct/                  27 GenVM direct-mode tests (15 flow + 12 adversarial with a transfer ledger)
+scripts/adversarial-e2e.mjs    live three-party adversarial run on Studio (25 real transactions)
+evidence/adversarial-e2e.md    its recorded output, with tx links
 deployments/studionet.json     contract address and every recorded transaction
 evidence/gldoctor-explain.txt  genlayer-doctor output for every transaction
 ```
@@ -98,6 +114,9 @@ node scripts/errata.mjs fund                # free Studio test GEN
 node scripts/errata.mjs pools
 node scripts/errata.mjs report 0 77 wrong_answer C 0.5 "Key should be C" "Global spread defines a pandemic" https://en.wikipedia.org/wiki/Pandemic
 node scripts/errata.mjs adjudicate <report-id>
+node scripts/errata.mjs recover <report-id>            # after the pool's adjudication timeout
+node scripts/errata.mjs withdraw-free <pool-id> 0      # owner: collect free funds (also after close)
+node scripts/adversarial-e2e.mjs 240 300               # live adversarial run (window, timeout in s)
 ```
 
 ## Roadmap
