@@ -1,6 +1,14 @@
 {
   "network": "studionet",
-  "txs": [],
+  "txs": [
+    {
+      "label": "deploy",
+      "hash": "0x9e1cab473d2e86b248e741c7357d278ac967f4e8cfa358cee984286fc6ddc055",
+      "status": "5",
+      "execution": "SUCCESS",
+      "at": "2026-10-11T21:42:54.242Z"
+    }
+  ],
   "previous": [
     {
       "version": "v0.3-rc1",
@@ -1167,7 +1175,7 @@
           "at": "2026-10-11T21:05:04.104Z"
         },
         {
-          "label": "[v0.3 browser e2e] owner create_pool #10 \"MMLU \u00b7 virology (test split) \u00b7 v0.3 demo\"",
+          "label": "[v0.3 browser e2e] owner create_pool #10 \"MMLU · virology (test split) · v0.3 demo\"",
           "hash": "0x9e05902e005c45c1eb8886cdd8a7ca1c1977e894089b2c6fe5da8c207ae3adfa",
           "status": "5",
           "execution": "SUCCESS",
@@ -1696,7 +1704,7 @@
           "at": "2026-10-11T15:43:07.056Z"
         },
         {
-          "label": "create_pool \"MMLU \u00b7 virology (test split) \u00b7 v0.2\"",
+          "label": "create_pool \"MMLU · virology (test split) · v0.2\"",
           "hash": "0x84bc76fce8e2b914c9ed26b3d43e5e2e272a070f5b41649ceefb22d6fd89543c",
           "status": "5",
           "execution": "SUCCESS",
@@ -1731,7 +1739,7 @@
           "at": "2026-10-04T11:14:56.040Z"
         },
         {
-          "label": "create_pool \"MMLU \u00b7 virology (test split)\"",
+          "label": "create_pool \"MMLU · virology (test split)\"",
           "hash": "0x079fd044e6f5d5e7176988e7af873533aec1903a26e79ac4b4f27768b3c41f9b",
           "status": "FINALIZED",
           "execution": "SUCCESS",
@@ -1878,5 +1886,7 @@
     }
   ],
   "deployer": "0xc7AC1469a8dc7E4df3CE2D646dd6D01296548CEd",
-  "v03_runs": 0
+  "v03_runs": 0,
+  "contract": "0xe6451E2d039Efac708639a38F64Dc2EF69Af0232",
+  "deployTx": "0x9e1cab473d2e86b248e741c7357d278ac967f4e8cfa358cee984286fc6ddc055"
 }
