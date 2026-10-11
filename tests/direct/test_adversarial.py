@@ -187,7 +187,7 @@ def test_split_evidence_cannot_force_a_free_refund(direct_vm, L, direct_alice, d
 
 
 def test_missing_item_is_void_at_once_not_stuck(direct_vm, L, direct_alice, direct_bob, direct_charlie):
-    """HTTP 404/410 or an empty datasets-server row is a definite answer: the report is VOID
+    """HTTP 404/410 (also 400/422, see below) or an empty datasets-server row is a definite answer: the report is VOID
     immediately (stake refunded, reward released) instead of blocking the reward until the deadline."""
     pid = pool(L, direct_alice, funds=4 * GEN)
     r1 = report(L, direct_bob, item="999999")
@@ -213,6 +213,42 @@ def test_missing_item_is_void_at_once_not_stuck(direct_vm, L, direct_alice, dire
     assert L.c.get_stats()["total_void"] == GEN
     assert L.claim(direct_bob) == GEN // 2 and L.claim(direct_charlie) == GEN // 2
     L.solvent()
+
+
+def test_malformed_item_id_cannot_lock_a_reward_until_the_deadline(direct_vm, L, direct_alice, direct_bob, direct_charlie):
+    """Griefing: datasets-server answers a non-numeric offset with HTTP 422 (400 for other bad
+    requests). Before v0.3 final, such a report could never be adjudicated, so an attacker could
+    lock one reward per report until the deadline and get the whole stake back. Now the source's
+    definite "no such item" answer is a VOID decided at once by anyone (e.g. the owner)."""
+    pid = pool(L, direct_alice, funds=4 * GEN)
+    rids = [report(L, direct_charlie, item=i) for i in ("not-a-row", "x.y")]
+    assert L.c.get_pool(pid)["reserved"] == 4 * GEN and L.c.get_pool(pid)["balance"] == 0  # the grief: the whole pool is reserved
+    direct_vm.clear_mocks()
+    direct_vm.mock_web(r"offset=not-a-row", {"status": 422, "body": '{"error":"offset must be an integer"}'})
+    direct_vm.mock_web(r"offset=x\.y", {"status": 400, "body": "bad request"})
+    for rid in rids:
+        assert L.call(direct_alice, "adjudicate", rid) == "VOID"  # no waiting for the deadline
+        assert L.c.get_report(rid)["final"]
+    p = L.c.get_pool(pid)
+    assert p["reserved"] == 0 and p["balance"] == 4 * GEN  # rewards free again at once
+    assert direct_vm.run_validator() is True
+    honest = direct_vm._captured_validators[-1][0]
+    assert direct_vm.run_validator(leader_result=dict(honest, verdict="INVALID", item_hash="cd" * 32)) is False
+    # the honest reporter can use the freed rewards right away
+    serve(direct_vm, verdict("VALID", "C"))
+    rid = report(L, direct_bob)
+    assert L.call(direct_alice, "adjudicate", rid) == "UPHELD"
+    assert L.claim(direct_charlie) == GEN  # the griefer only got the stakes back
+    L.solvent()
+
+
+@pytest.mark.parametrize("status", [401, 403, 408, 429, 500, 502])
+def test_transient_or_auth_errors_stay_pending(direct_vm, L, direct_alice, direct_bob, status):
+    pool(L, direct_alice)
+    rid = report(L, direct_bob)
+    serve(direct_vm, verdict("VALID", "C"), item_status=status)
+    L.reverts(direct_alice, "adjudicate", rid, match=f"HTTP {status}")
+    assert L.c.get_report(rid)["status"] == "PENDING"
 
 
 def test_transient_5xx_is_not_void(direct_vm, L, direct_alice, direct_bob):

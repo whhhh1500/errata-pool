@@ -435,7 +435,7 @@ $("#file-form").addEventListener("submit", async (ev) => {
   const res = await send(`file_report item ${item}`, "file_report",
     [BigInt(poolSel), item, kind, choice, f.get("fix"), f.get("why"), f.get("ev").trim()], stake, {
       rows: [["Claim", `${KIND[kind]}${kind === "wrong_answer" ? ` → ${choice}` : ""} on item ${item}`], ["If upheld", `you receive ${fmtGen(p.reward)} + your stake back`], ["If rejected", `your ${fmtGen(stake)} stake is forfeited to the pool`]],
-      warnings: [`After ${p.timeout_secs} s without an adjudication anyone can recover the report and refund your stake (as a claimable credit).`, "If the source says the item does not exist (404 or no row), the report is voided and your stake refunded."] });
+      warnings: [`After ${p.timeout_secs} s without an adjudication anyone can recover the report and refund your stake (as a claimable credit).`, "If the source says the item does not exist (HTTP 400/404/410/422 or no row), the report is voided and your stake refunded."] });
   if (res && typeof res === "object" && res.id != null) { reportSel = Number(res.id); await refresh(); $("#report-wrap").scrollIntoView({ behavior: "smooth" }); }
 });
 $("#pool-form").addEventListener("submit", async (ev) => {

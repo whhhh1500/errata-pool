@@ -25,8 +25,8 @@ Fixing them needs someone to *adjudicate* each contested item.
   (filed_at + the pool's timeout). Before it only `adjudicate` can move a PENDING report;
   from it on only `recover_stuck` can, so the two can never race. Recovery is open to
   anyone, and the caller gains nothing: the stake is credited to the reporter, the reserved
-  reward goes back to the pool. An item the source says does not exist (HTTP 404/410 or
-  an empty datasets-server row) is decided at once as VOID (stake refunded, reward
+  reward goes back to the pool. An item the source says does not exist (HTTP 400/404/410/422,
+  i.e. a malformed or unknown id, or an empty datasets-server row) is decided at once as VOID (stake refunded, reward
   released) instead of blocking the reward until the deadline.
 * Pull payments (v0.3). No call pushes GEN to a party except the same-transaction refund
   of an invalid payable call. Settlement, recovery, withdrawal and pool closure only move
@@ -68,6 +68,11 @@ EXPIRED = "EXPIRED"  # final: could not be adjudicated before the deadline; stak
 VOID = "VOID"  # final: the source says the item does not exist; stake refunded, reward released
 FINAL = (PAID, FORFEITED, WITHDRAWN, EXPIRED, VOID)
 MISSING = "MISSING"  # verdict used when validators agree the item does not exist
+# Definite "no such item" answers from the source. 400/422 matter: datasets-server answers a
+# non-numeric offset with 422, and without this a report on item "abc" could never be
+# adjudicated and would lock a reward until its deadline for free (griefing). 5xx, 401/403,
+# 408 and 429 are treated as transient: the report stays PENDING.
+MISSING_HTTP = (400, 404, 410, 422)
 
 
 # --------------------------------------------------------------------------- #
@@ -558,7 +563,7 @@ class ErrataPool(gl.Contract):
                 item = {"text": snapshot, "key": published_key}
             else:
                 resp = gl.nondet.web.get(url)
-                if resp.status in (404, 410):
+                if resp.status in MISSING_HTTP:
                     return _missing(f"item URL returned HTTP {resp.status}")
                 if resp.status >= 400:
                     raise gl.vm.UserError(f"item URL returned HTTP {resp.status}")

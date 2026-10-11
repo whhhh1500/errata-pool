@@ -3,6 +3,7 @@
 // Covers the four review items with real transactions:
 //   evidence/item fetch failure -> deadline -> recovery (by a stranger, who gains nothing)
 //   missing item -> VOID at once (HF empty row and HTTP 404)
+//   griefing: malformed item id (HF answers 422) cannot lock a reward until the deadline -> VOID
 //   forfeited stake after pool close -> credited to the owner -> claimed
 //   double settle / double recover / double claim, and unauthorized callers
 //
@@ -105,7 +106,8 @@ for (const k of ["REPORTER", "ATTACKER"]) await rpc("sim_fundAccount", [parties[
 const s0 = await read("get_stats");
 const A = BigInt(s0.pools), B = A + 1n;
 const r0 = BigInt(s0.reports);
-const rA0 = r0, rA1 = r0 + 1n, rA2 = r0 + 2n, rB0 = r0 + 3n, rB1 = r0 + 4n;
+const C = B + 1n;
+const rA0 = r0, rA1 = r0 + 1n, rA2 = r0 + 2n, rB0 = r0 + 3n, rB1 = r0 + 4n, rC0 = r0 + 5n;
 const WHY77 = "A disease spreading across several continents is a pandemic; endemic means constant presence in one area.";
 
 // ---- setup
@@ -127,6 +129,11 @@ await step("REPORTER", "report on pool B item 503 with an evidence URL that also
   [B, "503", "flawed_question", "", "", "The item page cannot be loaded and the question is unusable.", "https://httpbin.org/status/503"], GEN / 4n, "ok");
 await step("REPORTER", "report on pool B item 404 (source answers HTTP 404)", "file_report",
   [B, "404", "flawed_question", "", "", "This item no longer exists at the source.", ""], GEN / 4n, "ok");
+await step("OWNER", `create pool C: MMLU virology, 1 GEN, reward 1, min stake 0.25, window 0, timeout ${TIMEOUT}s`, "create_pool",
+  ["MMLU virology · v0.3 griefing", MMLU, "Report items whose answer key is wrong.", GEN, GEN / 4n, 0n, TIMEOUT], GEN, "ok");
+await step("ATTACKER", "grief: report pool C item \"not-a-row\" (datasets-server answers 422) to lock the only reward", "file_report",
+  [C, "not-a-row", "flawed_question", "", "", "Locking this pool's reward for free until the deadline.", ""], GEN / 4n, "ok");
+{ const pc = await read("get_pool", [C]); check(BigInt(pc.reserved) === GEN && BigInt(pc.balance) === 0n, "pool C: its whole balance is reserved by the griefing report"); }
 await step("OWNER", "adjudicate pool B item 503 (item and evidence fetch fail -> must revert, stays PENDING)", "adjudicate", [rB0], 0n, "revert:");
 await step("ATTACKER", "recover_stuck before the deadline", "recover_stuck", [rB0], 0n, "revert:not stuck yet");
 
@@ -142,6 +149,11 @@ await step("ATTACKER", "settle inside the review window", "settle", [rA0], 0n, "
 await step("OWNER", "adjudicate the false/injection report", "adjudicate", [rA1], 0n, "ok");
 await step("ATTACKER", "adjudicate item 999999 (empty row -> VOID at once)", "adjudicate", [rA2], 0n, "ok");
 await step("ATTACKER", "adjudicate pool B item 404 (HTTP 404 -> VOID at once)", "adjudicate", [rB1], 0n, "ok");
+await step("OWNER", "adjudicate the griefing report (HTTP 422 -> VOID at once, no wait for the deadline)", "adjudicate", [rC0], 0n, "ok");
+{ const rc = await read("get_report", [rC0]); const pc = await read("get_pool", [C]);
+  check(rc.status === "VOID" && BigInt(pc.reserved) === 0n && BigInt(pc.balance) === GEN, `griefing report #${rC0} is ${rc.status} (${rc.reason}); pool C reward free again (reserved ${fmt(pc.reserved)}, balance ${fmt(pc.balance)})`); }
+check((await credit("ATTACKER")) === GEN / 4n, "the griefer only gets the 0.25 stake back as a credit");
+await step("ATTACKER", "claim the griefing stake refund", "claim", [], 0n, "ok");
 const v = await Promise.all([rA0, rA1, rA2, rB0, rB1].map((i) => read("get_report", [i])));
 note(`after adjudication: #${rA0} ${v[0].status} (${v[0].reason}); #${rA1} ${v[1].status} (${v[1].reason}); #${rA2} ${v[2].status} (${v[2].reason}); #${rB0} ${v[3].status}; #${rB1} ${v[4].status} (${v[4].reason})`);
 check(v[2].status === "VOID" && v[4].status === "VOID", "missing items are VOID immediately (no wait for the deadline)");
@@ -191,7 +203,8 @@ if ((await credit("ATTACKER")) === 0n) await step("ATTACKER", "claim (attacker h
 await step("OWNER", `owner claims ${fmt(ownerAfter)} GEN (close refund + forfeits after close)`, "claim", [], 0n, "ok");
 if ((await credit("REPORTER")) > 0n) await step("REPORTER", `reporter claims ${fmt(await credit("REPORTER"))} GEN`, "claim", [], 0n, "ok");
 await step("OWNER", "close pool B", "close_pool", [B], 0n, "ok");
-await step("OWNER", "claim pool B refund", "claim", [], 0n, "ok");
+await step("OWNER", "close pool C", "close_pool", [C], 0n, "ok");
+await step("OWNER", "claim pool B + C refunds", "claim", [], 0n, "ok");
 await step("OWNER", "claim again (double claim)", "claim", [], 0n, "revert:nothing to claim");
 
 // emitted transfers finalize as their own transactions: wait for the native balance to settle
@@ -208,7 +221,7 @@ writeFileSync(OUT, JSON.stringify(state, null, 2) + "\n");
 const md = [
   `# ErrataPool v0.3 live adversarial run ${RUN}: ${new Date().toISOString()}`,
   "",
-  `Contract [${CONTRACT}](${EXPLORER}/address/${CONTRACT}) on GenLayer Studio. Pool A #${A} (MMLU virology, window ${WINDOW} s, timeout ${TIMEOUT} s), pool B #${B} (flaky source \`${FLAKY}\`, timeout ${TIMEOUT} s). Reports #${rA0}-#${rB1}.`,
+  `Contract [${CONTRACT}](${EXPLORER}/address/${CONTRACT}) on GenLayer Studio. Pool A #${A} (MMLU virology, window ${WINDOW} s, timeout ${TIMEOUT} s), pool B #${B} (flaky source \`${FLAKY}\`, timeout ${TIMEOUT} s), pool C #${C} (MMLU, griefing with a malformed item id). Reports #${rA0}-#${rC0}.`,
   "OWNER is the deployer; REPORTER and ATTACKER are fresh in-memory keys funded by the Studio faucet (test GEN). Every row is a real transaction; rows that must fail are checked to revert with the expected message.",
   "",
   "| # | party | step | expected | result | tx |",
