@@ -39,7 +39,8 @@ def bounced(res, msg):
 
 
 def test_empty_state(pool_c):
-    assert pool_c.get_stats() == {"pools": 0, "reports": 0, "total_paid": 0, "total_forfeited": 0, "total_bounced": 0, "total_recovered": 0}
+    assert pool_c.get_stats() == {"pools": 0, "reports": 0, "total_paid": 0, "total_forfeited": 0, "total_bounced": 0, "total_recovered": 0,
+                                    "total_void": 0, "total_credits": 0, "total_claimed": 0}
     assert pool_c.list_pools() == []
 
 
@@ -106,6 +107,8 @@ def test_upheld_erratum_pays_and_is_listed(direct_vm, pool_c, judge, direct_alic
     assert errata == [{"report_id": rid, "item_id": "77", "kind": "wrong_answer", "published_key": "B", "corrected_key": "C",
                        "fix": "Key should be C) Pandemic", "reason": "mock", "item_hash": r["item_hash"], "appealed": False}]
     assert pool_c.get_stats()["total_paid"] == 2 * GEN
+    assert pool_c.get_credit(_hex(direct_bob)) == 2 * GEN + GEN // 2  # v0.3: pull payment
+    assert pool_c.get_report(rid)["final"] and pool_c.get_report(rid)["finalized_at"] > 0
     with pytest.raises(AssertionError, match="already has an open or accepted report"):
         file(direct_vm, pool_c, direct_bob)  # an accepted item is never paid twice
 
@@ -236,7 +239,7 @@ def test_fund_pool_and_list_views(direct_vm, pool_c, direct_alice, direct_bob):
     assert len(pool_c.list_reports(1)) == 1 and pool_c.list_reports(0) == [] and len(pool_c.list_reports(-1)) == 1
     assert pool_c.get_errata(0) == []
     liab = pool_c.get_liabilities()
-    assert liab == {"pools": 13 * GEN + 10 * GEN, "stakes": GEN // 2, "total": 23 * GEN + GEN // 2}
+    assert liab == {"pools": 13 * GEN + 10 * GEN, "stakes": GEN // 2, "credits": 0, "total": 23 * GEN + GEN // 2}
 
 
 def test_bad_llm_output_reverts(direct_vm, pool_c, judge, direct_alice, direct_bob):

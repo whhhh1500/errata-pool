@@ -15,9 +15,27 @@ ErrataPool turns this into a market with a referee:
 | **Anyone** | calls **settle**: an upheld erratum pays reward + stake to the reporter and is appended to the pool's public **errata list** (exportable JSON for eval harnesses); a rejected report's stake is forfeited **into the pool**, which funds future rewards and prices out spam |
 
 **Live app:** https://whhhh1500.github.io/errata-pool/ (demo account funded by the Studio faucet, or any browser wallet)
-**Contract v0.2 (GenLayer Studio / studionet):** [`0xc1DA30D9bCdE724065EDa6B15f3d9b7D933e5C6E`](https://explorer-studio.genlayer.com/address/0xc1DA30D9bCdE724065EDa6B15f3d9b7D933e5C6E) · [open in Studio](https://studio.genlayer.com/?import-contract=0xc1DA30D9bCdE724065EDa6B15f3d9b7D933e5C6E) (v0.1 at `0xbf2Ab9B2…9b94` is kept for its recorded run below)
+**Contract v0.3 (GenLayer Studio / studionet):** [`0x78dFbB6174adA84cf88Fc3A41D82c7b6c05dB1Df`](https://explorer-studio.genlayer.com/address/0x78dFbB6174adA84cf88Fc3A41D82c7b6c05dB1Df) · [open in Studio](https://studio.genlayer.com/?import-contract=0x78dFbB6174adA84cf88Fc3A41D82c7b6c05dB1Df) · deploy tx `0x951ae0706d69dd5b669b4345f3b3a2561dc8495e3f6c133b4a24d73cfcc6a288`. Superseded: v0.2 `0xc1DA30D9…5C6E`, v0.1 `0xbf2Ab9B2…9b94` (kept for their recorded runs).
 
-## v0.2: changes from the steward review
+## v0.3: second round of the steward review (safe timeout, closed-pool forfeits, final-settlement UX, adversarial e2e)
+
+Full delta: [`v0.2.0...v0.3.0`](https://github.com/whhhh1500/errata-pool/compare/v0.2.0...v0.3.0) (and [`v0.1.0...v0.3.0`](https://github.com/whhhh1500/errata-pool/compare/v0.1.0...v0.3.0) against the reviewed version).
+
+| review item | v0.3 change | evidence |
+|---|---|---|
+| **(a) reports stuck PENDING because evidence/item can't be fetched: safe timeout + recovery** | Every report stores a **deadline** (`filed_at + pool.timeout_secs`, 60 s to 30 days, fixed at filing). Before it only `adjudicate` can move a PENDING report; from it on only `recover_stuck` can, so the two never race. `recover_stuck` is open to **anyone** (the reporter may be gone), but the caller gains nothing: the stake is credited to the **reporter**, the reserved reward returns to the **pool** (or to the owner's credit if the pool is closed). Only PENDING reports are recoverable, so a reporter cannot dodge a forfeit. A **missing item** (HTTP 404/410 or an empty datasets-server row, agreed by validators like a verdict) becomes **VOID** at once (stake refunded, reward released) instead of blocking the reward until the deadline; a transient 5xx stays PENDING. Evidence-page failure alone never blocks (validators judge without it); a page that *splits* validators is ignored from half the deadline on, and appeals never fetch it. | tests `test_evidence_fetch_failure_then_timeout_then_recovery`, `test_missing_item_is_void_at_once_not_stuck`, `test_transient_5xx_is_not_void`, `test_evidence_failure_alone_never_blocks_adjudication`, `test_split_evidence_cannot_force_a_free_refund`; live run in [evidence/v0.3-adversarial-e2e.md](evidence/v0.3-adversarial-e2e.md) |
+| **(b) forfeited stakes stranded in a closed pool** | A closed pool **never holds free funds** (invariant checked after every random step). `close_pool` credits the free balance to the owner; anything that later returns to a closed pool (forfeited stakes, released rewards, recovered reservations) is **credited to the owner immediately** and withdrawn with `claim()`. `withdraw_free` stays for open pools and can never touch reserved rewards. | `test_forfeited_stake_after_close_is_credited_to_owner_and_claimable`, `test_recovery_and_withdrawal_after_close_also_reach_the_owner`, `test_withdraw_free_never_touches_rewards_reserved_for_reporters`; live run (settle on closed pool → owner credit → owner claims) |
+| **Payout safety (re-entrancy, partial payouts, double pay)** | **Pull payments.** No call pushes GEN to a party except the same-transaction refund of an invalid payable call. settle / recover / withdraw / close only write `credits[address]` after the report is final (`_finish` before any money moves); `claim()` zeroes the credit, then emits one transfer. Emitted transfers run only after the call has finished, so there is no re-entrancy; a payout is one credit (reward + stake together), so there is no partial payment; a broken or hostile recipient cannot block anyone else. `get_liabilities()` now includes unclaimed credits. | `test_double_settle_and_cross_path_double_payout`, `test_settle_after_appeal_settles_once`, randomized solvency (3 seeds × 160 ops, native balance = liabilities after every step, ends at 0 wei after all claims) |
+| **(c) stronger frontend confirmation before final settlement** | Settle and recover open a **final-settlement dialog**: an orange FINAL banner, the verdict and reason, the appeal status, and every credit with recipient and amount taken from the contract's own `preview_settle` / `preview_recover` views (the same `_settle_plan` that `settle` executes). Sign stays disabled until `SETTLE <id>` (or `RECOVER <id>`) is typed **and** an acknowledgement is ticked. Right before signing the app **re-reads the report and the preview**; if anything changed (someone settled, appealed or recovered meanwhile) nothing is sent. A preview that says the call would fail never opens the dialog. Claim has its own dialog; final reports show a "Final, no further action" note. | [media/v0.3-settle-confirm.png](media/v0.3-settle-confirm.png); `scripts/e2e-browser-v03.mjs` (gating checks, a concurrent settle from another client while the dialog is open → *not sent*, full settle, claim) → [evidence/v0.3-browser-e2e.md](evidence/v0.3-browser-e2e.md) |
+| **(d) adversarial end-to-end tests** | 17 adversarial direct-mode tests (transfer ledger hooking every `EthSend`) + 15 flow tests + 22 unit tests. A live three-party run on Studio (`scripts/adversarial-e2e-v03.mjs`) with the deployer and two fresh faucet keys covers: evidence + item fetch failure → adjudication refused after the deadline → stranger recovers → reporter claims; missing item VOID (empty row and HTTP 404); forfeited stake after close → owner credit → owner claim; double settle, double recover, double claim; unauthorized withdraw / close / withdraw_free / appeal / claim. | [evidence/v0.3-adversarial-e2e.md](evidence/v0.3-adversarial-e2e.md) (every tx with expected vs actual and an explorer link) |
+
+### Threat model (v0.3)
+
+* **Who may trigger what.** `adjudicate`, `settle`, `recover_stuck`: anyone, because the outcome and the recipients are fixed by the contract; the caller earns nothing. `appeal`: only the losing side, once, inside the window. `withdraw_report`: only the reporter, only while PENDING. `close_pool`, `withdraw_free`: only the pool owner. `claim`: only for the caller's own credit.
+* **Griefing.** A reporter cannot park a report forever: the deadline ends adjudication, and recovery returns the reward to the pool. A bogus item id is voided as soon as anyone adjudicates it. A reporter-controlled evidence page cannot force a free refund (ignored from half the deadline on). The owner cannot drain reserved rewards, report into their own pool from the same address, or withdraw a closed pool's later forfeits for anyone but themselves.
+* **Residual.** An owner who controls the item host could take it offline (5xx) until the deadline: the reporter then gets the stake back but no reward. Use public dataset hosts. An appeal that cannot reach consensus leaves the first verdict, which settles after the window (no funds are stranded). Verdict quality is bounded by the validators' LLMs.
+
+## v0.2: changes from the first steward review
 
 | requested | what changed | evidence |
 |---|---|---|
@@ -72,7 +90,7 @@ After the run, `node scripts/errata.mjs solvency` gives `held 5 GEN == owed 5 GE
 * **Web access** (`gl.nondet.web.get`): the benchmark item (Hugging Face datasets-server, or any JSON or HTML endpoint) and the reporter's evidence page.
 * **LLM judgment** (`gl.nondet.exec_prompt`, JSON output): the adjudication of the item against the report, the pool's rules, the evidence and, on appeal, both sides' statements.
 * **Validator consensus with a custom validator** (`gl.vm.run_nondet_unsafe`): each validator re-fetches and re-judges independently, then accepts the leader's result only if it reaches the **same item fingerprint (sha256 of the normalised item), the same verdict and the same corrected choice**. The free-text reason may differ; the decision may not. If the leader failed (for example, the item URL returned 503), validators agree only if they fail too.
-* **Real state and value**: pools, reports, an active-item index that blocks duplicate reports, per-pool errata lists, reserved rewards, stakes, and native GEN payouts via `emit_transfer`.
+* **Real state and value**: pools, reports, an active-item index that blocks duplicate reports, per-pool errata lists, reserved rewards, stakes, a pull-payment credit ledger, and native GEN payouts via `emit_transfer` from `claim()`.
 
 ### Design decisions
 
@@ -80,7 +98,7 @@ After the run, `node scripts/errata.mjs solvency` gives `held 5 GEN == owed 5 GE
 * **One deterministic item adapter on every validator.** `normalize_item` maps HF datasets-server rows, plain `{question, choices, answer}` JSON, ARC-style `{choices:{text}, answerKey}` objects, and 0-based, numeric-string or letter answers into one canonical text with an explicit "Published answer key: B) …" line. The validators' fingerprint is taken over this text, so key order or envelope differences cannot split consensus. The web app uses the same adapter for its "preview as validators see it" button (`frontend/src/normalize.js`).
 * **Appeals are judged on the snapshot.** The item text judged at adjudication is stored. An appeal re-judges *that* text. A maintainer cannot silently patch the upstream item (or take it offline) to defeat an appeal. This is covered by a test that makes the item URL return 404 during the appeal.
 * **Payable calls never revert once value is attached.** On Studio we observed that a reverted payable transaction rolls back storage but **keeps the attached GEN in the contract**: probe tx `0x2c9c487d5cee67cf6269eacdd6e393dc4e5521a6f9c4822cf9c3d0d66fb974d1` on the superseded v1 contract (`FINALIZED`, leader `ERROR`, and the contract balance went from 0 to 1 GEN). In v2, `create_pool`, `fund_pool` and `file_report` are deterministic only. Invalid input returns `{"ok": false, "error": …}` and refunds the value in the same transaction (see the duplicate report above). All web and LLM work happens in non-payable calls (`adjudicate`, `appeal`), so a fetch failure only leaves the report `PENDING` to be retried, withdrawn, or (after the pool's timeout) recovered by anyone.
-* **Solvency is checkable.** `get_liabilities()` returns what the contract owes (free pool funds + reserved rewards + stakes in flight). `scripts/errata.mjs solvency` compares it with the native balance.
+* **Solvency is checkable.** `get_liabilities()` returns what the contract owes (free pool funds + reserved rewards + stakes in flight + unclaimed credits). `scripts/errata.mjs solvency` compares it with the native balance.
 * **Prompt-injection hygiene.** The report, evidence and appeal are interested parties' text. They are fenced in `<report>`, `<evidence>` and `<appeal>` tags, and the prompt says to treat them as claims, never instructions. Item ids are restricted to `[A-Za-z0-9._:-]{1,64}`, so a reporter cannot smuggle query parameters (`1&length=100`) into the template.
 * **Anti-spam economics.** A rejected stake grows the pool, an accepted item can never be paid twice, and a rejected item can be re-reported with a better argument.
 
@@ -91,10 +109,13 @@ contracts/errata_pool.py       Intelligent Contract (py-genlayer, pinned runner 
 frontend/                      Vite + genlayer-js web app (built to docs/ for GitHub Pages)
 scripts/errata.mjs             CLI: deploy, pools, reports, adjudicate, appeal, settle, solvency
 scripts/e2e-browser.mjs        headless browser run of the web app against the live contract
-tests/unit/                    20 pure tests of the adapter, prompt fencing, verdict parsing, rules, consensus key
-tests/direct/                  27 GenVM direct-mode tests (15 flow + 12 adversarial with a transfer ledger)
-scripts/adversarial-e2e.mjs    live three-party adversarial run on Studio (25 real transactions)
-evidence/adversarial-e2e.md    its recorded output, with tx links
+tests/unit/                    22 pure tests of the adapter, prompt fencing, verdict parsing, rules, consensus key
+tests/direct/                  32 GenVM direct-mode tests (15 flow + 17 adversarial with a transfer ledger)
+scripts/adversarial-e2e-v03.mjs  v0.3 live three-party adversarial run on Studio
+evidence/v0.3-adversarial-e2e.md its recorded output, with tx links
+scripts/e2e-browser-v03.mjs    browser run of the final-settlement dialog (gating, concurrent-settle abort, claim)
+evidence/v0.3-browser-e2e.md   its recorded output
+scripts/adversarial-e2e.mjs    v0.2 live run (25 txs) → evidence/adversarial-e2e.md
 deployments/studionet.json     contract address and every recorded transaction
 evidence/gldoctor-explain.txt  genlayer-doctor output for every transaction
 ```
@@ -114,9 +135,11 @@ node scripts/errata.mjs fund                # free Studio test GEN
 node scripts/errata.mjs pools
 node scripts/errata.mjs report 0 77 wrong_answer C 0.5 "Key should be C" "Global spread defines a pandemic" https://en.wikipedia.org/wiki/Pandemic
 node scripts/errata.mjs adjudicate <report-id>
-node scripts/errata.mjs recover <report-id>            # after the pool's adjudication timeout
-node scripts/errata.mjs withdraw-free <pool-id> 0      # owner: collect free funds (also after close)
-node scripts/adversarial-e2e.mjs 240 300               # live adversarial run (window, timeout in s)
+node scripts/errata.mjs preview-settle <report-id>     # exactly what settle would credit, or why it fails
+node scripts/errata.mjs recover <report-id>            # after the report's adjudication deadline
+node scripts/errata.mjs withdraw-free <pool-id> 0      # owner: move free funds of an open pool to your credit
+node scripts/errata.mjs credit && node scripts/errata.mjs claim   # pull payments
+node scripts/adversarial-e2e-v03.mjs 600 900           # live adversarial run (window, timeout in s)
 ```
 
 ## Roadmap

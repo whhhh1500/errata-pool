@@ -25,7 +25,7 @@ export function normalizeItem(body) {
   try {
     const raw = JSON.parse(body);
     // datasets-server answers an out-of-range offset with 200 and no rows: no item
-    if (raw && typeof raw === "object" && Array.isArray(raw.rows) && !raw.rows.length) return { text: "", key: "" };
+    if (raw && typeof raw === "object" && Array.isArray(raw.rows) && !raw.rows.length) return { text: "(no such item: the source has no row for this id; validators would void the report)", key: "", missing: true };
     data = unwrap(raw);
   } catch {
     const doc = new DOMParser().parseFromString(body, "text/html");

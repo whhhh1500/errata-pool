@@ -143,3 +143,18 @@ def test_build_prompt_keeps_party_text_inside_fences():
 def test_out_of_range_offset_is_no_item():
     body = json.dumps({"features": [{"name": "question"}], "rows": [], "num_rows_total": 166})
     assert ep.normalize_item(body)["text"] == ""
+
+
+def test_empty_rows_are_flagged_missing_and_real_rows_are_not():
+    """v0.3: an empty datasets-server answer is a definite 'no such item' (VOID), not an error."""
+    empty = json.dumps({"features": [], "rows": [], "num_rows_total": 171})
+    assert ep.normalize_item(empty).get("missing") is True
+    row = json.dumps({"rows": [{"row": {"question": "Q?", "choices": ["a", "b"], "answer": 1}}]})
+    assert not ep.normalize_item(row).get("missing")
+    assert not ep.normalize_item("<html><body>gone</body></html>").get("missing")
+
+
+def test_missing_verdict_consensus_key_ignores_choice():
+    a = {"item_hash": "", "verdict": "MISSING", "correct_choice": ""}
+    assert ep.consensus_key(a) == ("", "MISSING", "")
+    assert ep.consensus_key(a) != ep.consensus_key({"item_hash": "x" * 64, "verdict": "INVALID"})

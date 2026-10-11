@@ -21,11 +21,21 @@ Fixing them needs someone to *adjudicate* each contested item.
 * **settle** pays reward + stake to the reporter for an upheld erratum and records it in
   the pool's public errata list, which eval harnesses can export and apply. A rejected
   report forfeits its stake into the pool, which funds future rewards and deters spam.
-* Nothing can get stuck (v0.2). A report that validators cannot adjudicate (item URL
-  gone, no consensus) can be **recovered** by anyone after the pool's adjudication
-  timeout: the stake goes back to the reporter and the reserved reward back to the pool,
-  never to the caller. Funds that return to a pool after it was closed (released rewards,
-  forfeited stakes) stay withdrawable by the owner with **withdraw_free**.
+* Nothing can get stuck (v0.3). Every report has an adjudication **deadline**
+  (filed_at + the pool's timeout). Before it only `adjudicate` can move a PENDING report;
+  from it on only `recover_stuck` can, so the two can never race. Recovery is open to
+  anyone, and the caller gains nothing: the stake is credited to the reporter, the reserved
+  reward goes back to the pool. An item the source says does not exist (HTTP 404/410 or
+  an empty datasets-server row) is decided at once as VOID (stake refunded, reward
+  released) instead of blocking the reward until the deadline.
+* Pull payments (v0.3). No call pushes GEN to a party except the same-transaction refund
+  of an invalid payable call. Settlement, recovery, withdrawal and pool closure only move
+  amounts into `credits[address]`, with all state final first; `claim()` zeroes the credit
+  and then transfers it. A payout is therefore all-or-nothing, a hostile or broken
+  recipient cannot block anyone else, and paying twice is impossible by construction.
+* Closed pools (v0.3). A closed pool keeps no free balance. Anything that returns to it
+  later (forfeited stakes, released rewards) is credited straight to the pool owner and
+  is claimable at once.
 """
 
 import hashlib
@@ -54,7 +64,10 @@ REJECTED = "REJECTED"  # validators rejected it (review window running)
 PAID = "PAID"  # final: upheld and paid out, listed in the errata
 FORFEITED = "FORFEITED"  # final: rejected, stake moved into the pool
 WITHDRAWN = "WITHDRAWN"  # reporter withdrew before adjudication
-EXPIRED = "EXPIRED"  # final: could not be adjudicated before the timeout; stake refunded
+EXPIRED = "EXPIRED"  # final: could not be adjudicated before the deadline; stake refunded
+VOID = "VOID"  # final: the source says the item does not exist; stake refunded, reward released
+FINAL = (PAID, FORFEITED, WITHDRAWN, EXPIRED, VOID)
+MISSING = "MISSING"  # verdict used when validators agree the item does not exist
 
 
 # --------------------------------------------------------------------------- #
@@ -130,7 +143,7 @@ def normalize_item(body: str) -> dict:
         raw = json.loads(body)
         if isinstance(raw, dict) and isinstance(raw.get("rows"), list) and not raw["rows"]:
             # datasets-server answers an out-of-range offset with 200 and no rows: no item
-            return {"text": "", "n_choices": 0, "key": ""}
+            return {"text": "", "n_choices": 0, "key": "", "missing": True}
         data = _unwrap(raw)
     except (ValueError, TypeError):
         return {"text": html_to_text(body, MAX_ITEM_TEXT), "n_choices": 0, "key": ""}
@@ -298,6 +311,8 @@ class Report:
     appeal_by: Address
     appeal_reason: str
     evidence_used: bool
+    deadline: u256  # adjudicate only before, recover_stuck only from this time on
+    finalized_at: u256
 
 
 def _now() -> int:
@@ -315,9 +330,16 @@ class ErrataPool(gl.Contract):
     total_forfeited: u256
     total_bounced: u256  # value refunded from invalid payable calls
     total_recovered: u256  # stakes refunded from expired (stuck) reports
+    total_void: u256  # stakes refunded because the item does not exist
+    credits: TreeMap[Address, u256]  # pull payments: claimable by the address
+    total_credits: u256  # sum of all unclaimed credits
+    total_claimed: u256
 
     def __init__(self) -> None:
         self.total_recovered = u256(0)
+        self.total_void = u256(0)
+        self.total_credits = u256(0)
+        self.total_claimed = u256(0)
         self.pool_count = u256(0)
         self.report_count = u256(0)
         self.total_paid = u256(0)
@@ -379,11 +401,9 @@ class ErrataPool(gl.Contract):
 
     @gl.public.write
     def withdraw_free(self, pool_id: int, amount: int) -> int:
-        """Owner takes back unreserved funds (amount 0 = all), open or closed pool.
-
-        Rewards reserved for reports in flight are never withdrawable, so reporters stay
-        covered. After close_pool, this is how the owner collects forfeited stakes and
-        released rewards that come back to the pool later."""
+        """Owner moves unreserved funds (amount 0 = all) of an open pool to their claimable
+        credit. Rewards reserved for reports in flight are never withdrawable. A closed pool
+        has no free balance: whatever returns to it is credited to the owner directly."""
         p = self._pool(pool_id)
         if gl.message.sender_address != p.owner:
             raise gl.vm.UserError("only the pool owner can withdraw")
@@ -395,13 +415,14 @@ class ErrataPool(gl.Contract):
         if out == u256(0):
             raise gl.vm.UserError("nothing to withdraw")
         p.balance -= out
-        _Recipient(p.owner).emit_transfer(value=out)
+        self._credit(p.owner, out)
         return int(out)
 
     @gl.public.write
     def close_pool(self, pool_id: int) -> None:
-        """Stop new reports and refund the unreserved balance. Reports in flight still settle;
-        whatever returns to the pool later is collected with withdraw_free."""
+        """Stop new reports and credit the unreserved balance to the owner. Reports in flight
+        still settle; anything that later returns to the pool (forfeited stakes, released
+        rewards) is credited to the owner at that moment and can be claimed."""
         p = self._pool(pool_id)
         if gl.message.sender_address != p.owner:
             raise gl.vm.UserError("only the pool owner can close it")
@@ -410,8 +431,7 @@ class ErrataPool(gl.Contract):
         p.open = False
         refund = p.balance
         p.balance = u256(0)
-        if refund > u256(0):
-            _Recipient(p.owner).emit_transfer(value=refund)
+        self._credit(p.owner, refund)
 
     # ------------------------------------------------------------------ #
     # reports                                                            #
@@ -460,6 +480,7 @@ class ErrataPool(gl.Contract):
             stake=stake, reserved=p.reward, status=PENDING, verdict="", correct_choice="", reason="", first_verdict="",
             item_text="", item_hash="", published_key="", filed_at=u256(_now()), adjudicated_at=u256(0),
             appealed=False, appeal_by=ZERO, appeal_reason="", evidence_used=False,
+            deadline=u256(_now() + int(p.timeout_secs)), finalized_at=u256(0),
         )
         self.active[key] = rid + u256(1)
         self.report_count = rid + u256(1)
@@ -473,35 +494,45 @@ class ErrataPool(gl.Contract):
         if r.status != PENDING:
             raise gl.vm.UserError("only PENDING reports can be withdrawn")
         p = self.pools[r.pool_id]
+        self._finish(p, r, WITHDRAWN)
         self._release(p, r)
-        r.status = WITHDRAWN
-        del self.active[f"{int(r.pool_id)}:{r.item_id}"]
-        if r.stake > u256(0):
-            _Recipient(r.reporter).emit_transfer(value=r.stake)
+        self._credit(r.reporter, r.stake)
 
     @gl.public.write
     def recover_stuck(self, report_id: int) -> str:
-        """Unstick a PENDING report that could not be adjudicated within the pool's timeout.
+        """Unstick a PENDING report that could not be adjudicated before its deadline.
 
         Callable by anyone (the reporter may be gone, the owner may want the reservation
-        back). It is deterministic and the caller gains nothing: the stake goes to the
-        reporter and the reserved reward to the pool's free balance. Adjudicated reports are
-        never recoverable: they settle through the normal path."""
+        back). Deterministic, and the caller gains nothing: the stake is credited to the
+        reporter and the reserved reward returns to the pool (or to the owner's credit if
+        the pool is closed). Adjudicated reports are never recoverable."""
         r = self._report(report_id)
         if r.status != PENDING:
             raise gl.vm.UserError(f"report is {r.status}; only PENDING reports can be recovered")
         p = self.pools[r.pool_id]
-        due = int(r.filed_at) + int(p.timeout_secs)
-        if _now() < due:
-            raise gl.vm.UserError(f"not stuck yet: adjudication is still possible until {due}")
+        if _now() < int(r.deadline):
+            raise gl.vm.UserError(f"not stuck yet: adjudication is still possible until {int(r.deadline)}")
+        self._finish(p, r, EXPIRED)
+        r.reason = "[recovered] not adjudicated before the deadline; stake refunded"
         self._release(p, r)
-        r.status = EXPIRED
-        r.reason = "[recovered] not adjudicated before the pool's timeout; stake refunded"
-        del self.active[f"{int(r.pool_id)}:{r.item_id}"]
+        self._credit(r.reporter, r.stake)
         self.total_recovered += r.stake
-        if r.stake > u256(0):
-            _Recipient(r.reporter).emit_transfer(value=r.stake)
         return EXPIRED
+
+    @gl.public.write
+    def claim(self) -> int:
+        """Pull payment: transfer the caller's whole credit. The credit is zeroed before the
+        transfer is emitted, and emitted transfers run only after this call has finished, so
+        there is no re-entrancy and no second claim of the same wei."""
+        who = gl.message.sender_address
+        amount = self.credits.get(who, u256(0))
+        if amount == u256(0):
+            raise gl.vm.UserError("nothing to claim")
+        self.credits[who] = u256(0)
+        self.total_credits -= amount
+        self.total_claimed += amount
+        _Recipient(who).emit_transfer(value=amount)
+        return int(amount)
 
     # ------------------------------------------------------------------ #
     # non-deterministic adjudication                                     #
@@ -517,14 +548,23 @@ class ErrataPool(gl.Contract):
         evidence_url = r.evidence_url if use_evidence else ""
         published_key = r.published_key
 
+        def _missing(why: str) -> dict:
+            # a definite "no such item" from the source: validators agree on it like a verdict
+            return {"verdict": MISSING, "correct_choice": "", "reason": f"[void] {why}", "item_text": "",
+                    "item_hash": "", "published_key": ""}
+
         def leader() -> dict:
             if snapshot:
                 item = {"text": snapshot, "key": published_key}
             else:
                 resp = gl.nondet.web.get(url)
+                if resp.status in (404, 410):
+                    return _missing(f"item URL returned HTTP {resp.status}")
                 if resp.status >= 400:
                     raise gl.vm.UserError(f"item URL returned HTTP {resp.status}")
                 item = normalize_item(resp.body.decode("utf-8", errors="replace") if resp.body else "")
+                if item.get("missing"):
+                    return _missing("the source has no row for this item id")
                 if len(item["text"].strip()) < 10:
                     raise gl.vm.UserError("item could not be fetched or is empty")
             evidence = ""
@@ -564,12 +604,24 @@ class ErrataPool(gl.Contract):
         if r.status != PENDING:
             raise gl.vm.UserError(f"report is {r.status}, not PENDING")
         p = self.pools[r.pool_id]
+        if _now() >= int(r.deadline):
+            raise gl.vm.UserError("adjudication deadline passed; the report can only be recovered (recover_stuck)")
         # A flaky evidence page could block consensus and steer the report into a free
         # timeout refund. In the second half of the timeout anyone can therefore adjudicate on
         # the item and the written justification alone.
         use_evidence = bool(r.evidence_url) and _now() < int(r.filed_at) + int(p.timeout_secs) // 2
         v = self._judge(p, r, "", "", use_evidence)
         r.evidence_used = use_evidence
+        if v["verdict"] == MISSING:
+            r.verdict = MISSING
+            r.first_verdict = MISSING
+            r.reason = v["reason"]
+            r.adjudicated_at = u256(_now())
+            self._finish(p, r, VOID)
+            self._release(p, r)
+            self._credit(r.reporter, r.stake)
+            self.total_void += r.stake
+            return VOID
         r.item_text = v["item_text"]
         r.item_hash = v["item_hash"]
         r.published_key = v["published_key"]
@@ -614,36 +666,75 @@ class ErrataPool(gl.Contract):
         r.status = UPHELD if v["verdict"] == "VALID" else REJECTED
         return r.status
 
+    def _settle_plan(self, rid: int, r: Report, p: Pool) -> dict:
+        """What settle would do right now: shared by settle and the preview_settle view, so
+        the confirmation the app shows is exactly what executes."""
+        if r.status not in (UPHELD, REJECTED):
+            return {"ok": False, "error": f"report is {r.status}; only UPHELD or REJECTED reports settle"}
+        if not r.appealed and _now() < int(r.adjudicated_at) + int(p.window_secs):
+            return {"ok": False, "error": "review window still open"}
+        owner = p.owner.as_hex
+        if r.status == UPHELD:
+            moves = [{"to": r.reporter.as_hex, "amount": int(r.reserved + r.stake), "what": "reward + stake back (claimable)"}]
+            return {"ok": True, "report_id": rid, "outcome": PAID, "moves": moves, "final": True}
+        moves = [{"to": "pool" if p.open else owner, "amount": int(r.reserved),
+                  "what": "reserved reward released" + ("" if p.open else " (pool closed: owner credit)")},
+                 {"to": "pool" if p.open else owner, "amount": int(r.stake),
+                  "what": "forfeited stake" + ("" if p.open else " (pool closed: owner credit)")}]
+        return {"ok": True, "report_id": rid, "outcome": FORFEITED, "moves": moves, "final": True}
+
     @gl.public.write
     def settle(self, report_id: int) -> str:
+        """Anyone may settle once the review window is over (or right after the appeal). All
+        state is final before any credit is written; nothing is transferred here."""
         r = self._report(report_id)
         p = self.pools[r.pool_id]
-        if r.status not in (UPHELD, REJECTED):
-            raise gl.vm.UserError(f"report is {r.status}; only UPHELD or REJECTED reports settle")
-        if not r.appealed and _now() < int(r.adjudicated_at) + int(p.window_secs):
-            raise gl.vm.UserError("review window still open")
+        plan = self._settle_plan(report_id, r, p)
+        if not plan["ok"]:
+            raise gl.vm.UserError(plan["error"])
         if r.status == UPHELD:
-            payout = r.reserved + r.stake
             p.reserved -= r.reserved
             p.paid += r.reserved
             p.errata += u256(1)
             self.total_paid += r.reserved
-            r.status = PAID
+            r.status = PAID  # stays in `active`: an accepted item is never paid twice
+            r.finalized_at = u256(_now())
             self.errata_ids.get_or_insert_default(r.pool_id).append(u256(report_id))
-            _Recipient(r.reporter).emit_transfer(value=payout)
+            self._credit(r.reporter, r.reserved + r.stake)
         else:
+            self._finish(p, r, FORFEITED)  # the item can be reported again
             self._release(p, r)
-            p.balance += r.stake  # forfeited stake funds future rewards
+            self._return_to_pool(p, r.stake)  # open pool: funds future rewards; closed: owner credit
             self.total_forfeited += r.stake
-            r.status = FORFEITED
-            del self.active[f"{int(r.pool_id)}:{r.item_id}"]  # the item can be reported again
         return r.status
 
+    # ------------------------------------------------------------------ #
+    # money movement (the only places balances change)                   #
+    # ------------------------------------------------------------------ #
+    def _credit(self, who: Address, amount: u256) -> None:
+        if amount > u256(0):
+            self.credits[who] = self.credits.get(who, u256(0)) + amount
+            self.total_credits += amount
+
+    def _return_to_pool(self, p: Pool, amount: u256) -> None:
+        """Funds coming back to a pool: free balance while open, owner credit once closed, so
+        a closed pool never holds anything nobody can withdraw."""
+        if p.open:
+            p.balance += amount
+        else:
+            self._credit(p.owner, amount)
+
     def _release(self, p: Pool, r: Report) -> None:
-        """A reserved reward goes back to the pool's free balance (open or closed); the owner
-        collects it with withdraw_free."""
         p.reserved -= r.reserved
-        p.balance += r.reserved
+        self._return_to_pool(p, r.reserved)
+
+    def _finish(self, p: Pool, r: Report, status: str) -> None:
+        """Make a report final before any money moves (checks-effects-interactions)."""
+        r.status = status
+        r.finalized_at = u256(_now())
+        k = f"{int(r.pool_id)}:{r.item_id}"
+        if k in self.active:
+            del self.active[k]
 
     # ------------------------------------------------------------------ #
     # views                                                              #
@@ -679,7 +770,8 @@ class ErrataPool(gl.Contract):
             "window_end": window_end, "appealed": r.appealed,
             "evidence_used": r.evidence_used,
             "evidence_until": int(r.filed_at) + int(p.timeout_secs) // 2,
-            "recoverable_at": int(r.filed_at) + int(p.timeout_secs) if r.status == PENDING else 0,
+            "recoverable_at": int(r.deadline) if r.status == PENDING else 0,
+            "deadline": int(r.deadline), "finalized_at": int(r.finalized_at), "final": r.status in FINAL,
             "appeal_by": r.appeal_by.as_hex if r.appeal_by != ZERO else "", "appeal_reason": r.appeal_reason,
         }
 
@@ -731,10 +823,36 @@ class ErrataPool(gl.Contract):
             r = self.reports[u256(i)]
             if r.status in (PENDING, UPHELD, REJECTED):
                 stakes += int(r.stake)
-        return {"pools": pools, "stakes": stakes, "total": pools + stakes}
+        credits = int(self.total_credits)
+        return {"pools": pools, "stakes": stakes, "credits": credits, "total": pools + stakes + credits}
 
     @gl.public.view
     def get_stats(self) -> dict:
         return {"pools": int(self.pool_count), "reports": int(self.report_count),
                 "total_paid": int(self.total_paid), "total_forfeited": int(self.total_forfeited),
-                "total_bounced": int(self.total_bounced), "total_recovered": int(self.total_recovered)}
+                "total_bounced": int(self.total_bounced), "total_recovered": int(self.total_recovered),
+                "total_void": int(self.total_void), "total_credits": int(self.total_credits),
+                "total_claimed": int(self.total_claimed)}
+
+    @gl.public.view
+    def get_credit(self, address: str) -> int:
+        """Claimable GEN (wei) for an address."""
+        return int(self.credits.get(Address(address), u256(0)))
+
+    @gl.public.view
+    def preview_settle(self, report_id: int) -> dict:
+        """Exactly what settle(report_id) would do now, or why it would fail."""
+        r = self._report(report_id)
+        return self._settle_plan(report_id, r, self.pools[r.pool_id])
+
+    @gl.public.view
+    def preview_recover(self, report_id: int) -> dict:
+        r = self._report(report_id)
+        p = self.pools[r.pool_id]
+        if r.status != PENDING:
+            return {"ok": False, "error": f"report is {r.status}; only PENDING reports can be recovered"}
+        if _now() < int(r.deadline):
+            return {"ok": False, "error": f"not stuck yet: adjudication is still possible until {int(r.deadline)}"}
+        return {"ok": True, "report_id": report_id, "outcome": EXPIRED, "final": True, "moves": [
+            {"to": r.reporter.as_hex, "amount": int(r.stake), "what": "stake refund (claimable)"},
+            {"to": "pool" if p.open else p.owner.as_hex, "amount": int(r.reserved), "what": "reserved reward released"}]}

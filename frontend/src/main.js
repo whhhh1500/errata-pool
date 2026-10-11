@@ -98,8 +98,11 @@ async function renderAccount() {
     return;
   }
   let bal = "…";
+  let credit = 0n;
   try { bal = fmtGen(await rpc("eth_getBalance", [account.address, "latest"])); } catch {}
+  try { credit = big(await read("get_credit", [account.address])); } catch {}
   box.append(el("span", { class: "pill" }, account.kind), " ", addrLink(account.address), " ", el("strong", {}, bal),
+    credit > 0n ? el("button", { class: "primary small", type: "button", id: "claim-btn", onclick: () => claimCredit() }, `Claim ${fmtGen(credit)}`) : el("span", { class: "hint" }, " · nothing to claim"),
     account.kind === "demo account" ? el("button", { class: "ghost small", type: "button", onclick: async () => { await rpc("sim_fundAccount", [account.address, Number(20n * GEN)]); renderAccount(); } }, "+20 test GEN") : null);
 }
 
@@ -108,23 +111,28 @@ async function renderAccount() {
 // which account, how much GEN leaves the wallet and what can happen to it. Destructive owner
 // actions need the pool id typed in. Nothing is signed until "Sign and send".
 let busy = false;
-function confirmTx({ title, value = 0n, rows = [], warnings = [], typed = null }) {
+function confirmTx({ title, value = 0n, rows = [], warnings = [], typed = null, ack = null, final = false }) {
   const dlg = $("#confirm");
   $("#c-title").textContent = title;
+  dlg.classList.toggle("final", !!final);
+  $("#c-final").hidden = !final;
   const all = [["Contract", `${CONTRACT} (GenLayer Studio, test GEN)`], ["From", `${account.address} · ${account.kind}`],
     ["Attached value", value > 0n ? fmtGen(value) : "none"], ...rows];
   $("#c-rows").replaceChildren(...all.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]));
   $("#c-warn").replaceChildren(...warnings.map((w) => el("li", {}, w)));
   const box = $("#c-typed"), inp = $("#c-typed-in"), ok = $("#c-ok");
+  const ackBox = $("#c-ack"), ackIn = $("#c-ack-in");
   box.hidden = !typed;
+  ackBox.hidden = !ack;
   inp.value = "";
-  ok.disabled = !!typed;
-  if (typed) {
-    $("#c-typed-label").textContent = typed.label;
-    inp.oninput = () => { ok.disabled = inp.value.trim() !== typed.expect; };
-  }
+  ackIn.checked = false;
+  const armed = () => (!typed || inp.value.trim() === typed.expect) && (!ack || ackIn.checked);
+  ok.disabled = !armed();
+  if (typed) $("#c-typed-label").textContent = typed.label;
+  if (ack) $("#c-ack-label").textContent = ack;
+  inp.oninput = ackIn.onchange = () => { ok.disabled = !armed(); };
   return new Promise((resolve) => {
-    dlg.onclose = () => resolve(dlg.returnValue === "ok" && (!typed || inp.value.trim() === typed.expect));
+    dlg.onclose = () => resolve(dlg.returnValue === "ok" && armed());
     dlg.returnValue = "";
     dlg.showModal();
     (typed ? inp : $("#c-cancel")).focus();
@@ -158,7 +166,7 @@ function decodePayload(pl) {
   return { ok: ok[1] === "true", ...(id ? { id: Number(id[1]) } : {}), ...(err ? { error: err[1] } : {}) };
 }
 async function send(label, functionName, args, value = 0n, confirm = {}) {
-  if (busy) return false;
+  if (busy) { log(`${label}: not sent, another transaction from this page is still in progress`, null, "err"); return false; }
   if (!account) await useBurner();
   if (!(await confirmTx({ title: label, value, ...confirm, rows: [["Call", `${functionName}(${args.map((x) => (typeof x === "string" ? JSON.stringify(x.length > 40 ? x.slice(0, 40) + "…" : x) : String(x))).join(", ")})`], ...(confirm.rows || [])] }))) {
     log(`${label}: cancelled, nothing was signed`);
@@ -168,6 +176,17 @@ async function send(label, functionName, args, value = 0n, confirm = {}) {
   document.body.classList.add("busy");
   const item = log(`${label}: sending…`);
   try {
+    // Final-settlement actions re-read the contract right before signing: if anything the user
+    // confirmed has changed in the meantime (someone else settled, appealed, recovered), stop.
+    if (confirm.recheck) {
+      const changed = await confirm.recheck();
+      if (changed) {
+        item.className = "err";
+        item.textContent = `${label}: not sent, the on-chain state changed while the dialog was open (${changed}). Review it again.`;
+        await refresh();
+        return false;
+      }
+    }
     const hash = await account.client.writeContract({ address: CONTRACT, functionName, args, value });
     item.replaceChildren(el("time", {}, new Date().toLocaleTimeString()), ` ${label}: waiting for validator consensus… `, txLink(hash));
     const receipt = await account.client.waitForTransactionReceipt({ hash, status: TransactionStatus.ACCEPTED, retries: 200, interval: 3000 });
@@ -191,13 +210,66 @@ async function send(label, functionName, args, value = 0n, confirm = {}) {
   }
 }
 
+// ---------- final settlement (settle / recover / claim) ----------
+// These actions are irreversible. The dialog shows the contract's own preview of every credit,
+// requires the report id typed in plus an explicit acknowledgement, and re-reads the state
+// right before signing. A preview that says the call would fail never opens the dialog.
+const who = (to, r, p) => {
+  const me = account?.address?.toLowerCase();
+  if (to === "pool") return `pool #${p.id} free balance`;
+  const tag = to.toLowerCase() === me ? " (you)" : to.toLowerCase() === r.reporter.toLowerCase() ? " (reporter)" : to.toLowerCase() === p.owner.toLowerCase() ? " (pool owner)" : "";
+  return `${short(to)}${tag}`;
+};
+const planKey = (r, plan) => JSON.stringify([r.status, r.verdict, r.appealed, r.correct_choice, plan.ok, plan.outcome, (plan.moves || []).map((m) => [m.to, String(m.amount)])]);
+async function finalAction(kind, r, p) {
+  const fn = kind === "settle" ? "settle" : "recover_stuck";
+  const view = kind === "settle" ? "preview_settle" : "preview_recover";
+  const [fresh, plan] = await Promise.all([read("get_report", [BigInt(r.id)]), read(view, [BigInt(r.id)])]);
+  if (!plan.ok) { log(`Not sent: ${fn} #${r.id} would fail on-chain: ${plan.error}`, null, "err"); await refresh(); return; }
+  const key = planKey(fresh, plan);
+  const moves = plan.moves.map((m) => [`→ ${who(m.to, fresh, p)}`, `${fmtGen(m.amount)} · ${m.what}`]);
+  const rows = kind === "settle" ? [
+    ["Verdict", `${fresh.verdict}${fresh.correct_choice ? ` (validators' answer ${fresh.correct_choice}, published ${fresh.published_key || "?"})` : ""}: ${fresh.reason}`],
+    ["Appeal", fresh.appealed ? `already used by ${short(fresh.appeal_by)}; this verdict is the last one` : `window closed ${new Date(Number(fresh.window_end) * 1000).toLocaleString()}; no appeal is possible any more`],
+    ["Outcome", `report becomes ${plan.outcome} (final)`], ...moves,
+  ] : [["Why", `not adjudicated before the deadline ${new Date(Number(fresh.deadline) * 1000).toLocaleString()}`], ["Outcome", "report becomes EXPIRED (final)"], ...moves];
+  return send(`${fn} #${r.id}`, fn, [BigInt(r.id)], 0n, {
+    final: true, rows,
+    warnings: [
+      "This is final settlement: it cannot be undone, appealed or repeated.",
+      "Nothing is transferred by this call. The amounts above become claimable credits; each recipient withdraws with Claim.",
+      kind === "recover" ? "You receive nothing for triggering recovery." : "Anyone may trigger settlement; the recipients are fixed by the contract, not by the caller.",
+    ],
+    typed: { label: `Type ${kind === "settle" ? "SETTLE" : "RECOVER"} ${r.id} to confirm`, expect: `${kind === "settle" ? "SETTLE" : "RECOVER"} ${r.id}` },
+    ack: "I have checked the verdict and the amounts, and I understand this is final.",
+    recheck: async () => {
+      const [r2, plan2] = await Promise.all([read("get_report", [BigInt(r.id)]), read(view, [BigInt(r.id)])]);
+      if (!plan2.ok) return plan2.error;
+      return planKey(r2, plan2) !== key ? `report is now ${r2.status}` : null;
+    },
+  });
+}
+async function claimCredit() {
+  const amount = big(await read("get_credit", [account.address]));
+  if (amount === 0n) { log("Not sent: nothing to claim.", null, "err"); return renderAccount(); }
+  return send("claim", "claim", [], 0n, {
+    rows: [["You receive", fmtGen(amount)], ["To", `${account.address} (the signer; nobody can claim for you)`]],
+    warnings: ["Your whole credit is transferred and zeroed in the same call; a second claim returns nothing."],
+    recheck: async () => (big(await read("get_credit", [account.address])) !== amount ? "credit changed" : null),
+  });
+}
+
 // ---------- reads ----------
 async function refresh() {
+  // credits can change through other people's calls (anyone may settle or recover), so the
+  // account box with its Claim button is refreshed together with the contract state
+  if (account) renderAccount();
   try {
     const [stats, list] = await Promise.all([read("get_stats"), read("list_pools")]);
     pools = list;
     $("#stats").replaceChildren(stat("Pools", stats.pools), stat("Reports", stats.reports), stat("Paid to reviewers", fmtGen(stats.total_paid)),
-      stat("Stakes forfeited", fmtGen(stats.total_forfeited)), stat("Refunded bad calls", fmtGen(stats.total_bounced)));
+      stat("Stakes forfeited", fmtGen(stats.total_forfeited)), stat("Recovered / void", fmtGen(big(stats.total_recovered) + big(stats.total_void))),
+      stat("Claimable credits", fmtGen(stats.total_credits)), stat("Claimed", fmtGen(stats.total_claimed)));
     if (!params.has("pool") && !refresh.done && pools.some((p) => p.open)) poolSel = Number(pools.filter((p) => p.open).at(-1).id);
     refresh.done = true;
     if (pools.length && !pools.some((p) => Number(p.id) === poolSel)) poolSel = Number(pools[0].id);
@@ -264,11 +336,11 @@ function renderPool() {
             isOwner ? "You own this pool: unreserved funds stay withdrawable by you." : `This is a donation: only the pool owner (${short(p.owner)}) can withdraw unreserved funds.`] });
         } }, "Fund")) : null,
       isOwner && p.open ? el("button", { class: "ghost small", type: "button", onclick: () => send(`close_pool #${p.id}`, "close_pool", [BigInt(p.id)], 0n, {
-        rows: [["Refund now", fmtGen(p.balance)], ["Stays reserved", `${fmtGen(p.reserved)} for reports in flight`]],
-        warnings: ["Closing is permanent: no new reports and no top-ups.", "Rewards and forfeited stakes that come back later are collected with “Withdraw free funds”."],
+        rows: [["Credited to you now", fmtGen(p.balance)], ["Stays reserved", `${fmtGen(p.reserved)} for reports in flight`]],
+        warnings: ["Closing is permanent: no new reports and no top-ups.", "Rewards and forfeited stakes that come back later are credited to you automatically; withdraw them with Claim."],
         typed: { label: `Type the pool id (${p.id}) to close it`, expect: String(p.id) } }) }, "Close pool and refund free funds") : null,
-      isOwner && big(p.balance) > 0n && !p.open ? el("button", { class: "ghost small", type: "button", onclick: () => send(`withdraw_free #${p.id}`, "withdraw_free", [BigInt(p.id), 0n], 0n, {
-        rows: [["You receive", fmtGen(p.balance)], ["Untouched", `${fmtGen(p.reserved)} reserved for reports in flight`]],
+      isOwner && big(p.balance) > 0n && p.open ? el("button", { class: "ghost small", type: "button", onclick: () => send(`withdraw_free #${p.id}`, "withdraw_free", [BigInt(p.id), 0n], 0n, {
+        rows: [["Credited to you", fmtGen(p.balance)], ["Untouched", `${fmtGen(p.reserved)} reserved for reports in flight`]],
         typed: { label: `Type the pool id (${p.id}) to withdraw`, expect: String(p.id) } }) }, `Withdraw free funds (${fmtGen(p.balance)})`) : null,
     ),
   );
@@ -285,16 +357,18 @@ function renderReport() {
   const windowOpen = ["UPHELD", "REJECTED"].includes(r.status) && !r.appealed && Number(r.window_end) > now;
   const canAppeal = windowOpen && me && ((r.status === "UPHELD" && me === p.owner.toLowerCase()) || (r.status === "REJECTED" && me === r.reporter.toLowerCase()));
   const actions = el("div", { class: "actions" });
-  if (r.status === "PENDING") {
+  if (r.final) actions.append(el("p", { class: "final-note" }, `Final: ${r.status}${Number(r.finalized_at) ? " since " + new Date(Number(r.finalized_at) * 1000).toLocaleString() : ""}. No further action is possible on this report.`));
+  if (r.status === "PENDING" && now < Number(r.deadline)) {
     const withEvidence = r.evidence_url && now < Number(r.evidence_until);
     actions.append(el("button", { class: "primary", type: "button", onclick: () => send(`adjudicate #${r.id}`, "adjudicate", [BigInt(r.id)], 0n, {
       rows: [["Judged on", withEvidence ? "item + justification + evidence page" : "item + justification (evidence page no longer used)"]],
       warnings: ["The verdict is final for this step: an INVALID verdict puts the reporter's stake at risk; VALID commits the pool's reserved reward. Each side can appeal once."] }) }, "Adjudicate now (validators fetch the item and vote)"));
-    if (me === r.reporter.toLowerCase()) actions.append(el("button", { class: "ghost", type: "button", onclick: () => send(`withdraw_report #${r.id}`, "withdraw_report", [BigInt(r.id)], 0n, { rows: [["Refund", fmtGen(r.stake)]] }) }, "Withdraw and refund stake"));
-    if (now >= Number(r.recoverable_at)) actions.append(el("button", { class: "ghost", type: "button", onclick: () => send(`recover_stuck #${r.id}`, "recover_stuck", [BigInt(r.id)], 0n, {
-      rows: [["Stake", `${fmtGen(r.stake)} → reporter ${short(r.reporter)}`], ["Reserved reward", `${fmtGen(r.reserved)} → pool #${r.pool_id} free balance`]],
-      warnings: ["You receive nothing: recovery only unsticks the funds. The report becomes EXPIRED and the item can be reported again."] }) }, "Recover stuck report (timeout passed)"));
-    else actions.append(el("p", { class: "hint" }, `If adjudication keeps failing, anyone can recover this report after ${new Date(Number(r.recoverable_at) * 1000).toLocaleString()}.`));
+    if (me === r.reporter.toLowerCase()) actions.append(el("button", { class: "ghost", type: "button", onclick: () => send(`withdraw_report #${r.id}`, "withdraw_report", [BigInt(r.id)], 0n, { rows: [["Refund (claimable)", fmtGen(r.stake)]] }) }, "Withdraw and refund stake"));
+    actions.append(el("p", { class: "hint" }, `Adjudication deadline ${new Date(Number(r.deadline) * 1000).toLocaleString()}. If it keeps failing (source down, no consensus), anyone can recover the report from then on.`));
+  }
+  if (r.status === "PENDING" && now >= Number(r.deadline)) {
+    if (me === r.reporter.toLowerCase()) actions.append(el("button", { class: "ghost", type: "button", onclick: () => send(`withdraw_report #${r.id}`, "withdraw_report", [BigInt(r.id)], 0n, { rows: [["Refund (claimable)", fmtGen(r.stake)]] }) }, "Withdraw and refund stake"));
+    actions.append(el("button", { class: "primary", type: "button", onclick: () => finalAction("recover", r, p) }, "Recover stuck report (deadline passed)…"));
   }
   if (canAppeal) {
     const reason = el("textarea", { id: "appeal-reason", rows: 2, maxlength: 600, placeholder: "Why is the verdict wrong?" });
@@ -305,9 +379,8 @@ function renderReport() {
       } }, "Appeal"));
   }
   if (["UPHELD", "REJECTED"].includes(r.status)) {
-    actions.append(el("button", { class: "primary", type: "button", disabled: windowOpen ? true : false, onclick: () => send(`settle #${r.id}`, "settle", [BigInt(r.id)], 0n, {
-      rows: [["Pays", r.status === "UPHELD" ? `${fmtGen(big(r.reserved) + big(r.stake))} → reporter ${short(r.reporter)}` : `stake ${fmtGen(r.stake)} forfeited into pool #${r.pool_id}`]] }) },
-      windowOpen ? `Settle (window closes ${new Date(Number(r.window_end) * 1000).toLocaleTimeString()})` : "Settle"));
+    actions.append(el("button", { class: "primary", type: "button", disabled: windowOpen ? true : false, onclick: () => finalAction("settle", r, p) },
+      windowOpen ? `Settle (window closes ${new Date(Number(r.window_end) * 1000).toLocaleTimeString()})` : "Review final settlement…"));
   }
   box.replaceChildren(...[
     el("div", { class: "row" }, el("h3", {}, `Report #${r.id} · item ${r.item_id}`), badge(r.status)),
@@ -362,7 +435,7 @@ $("#file-form").addEventListener("submit", async (ev) => {
   const res = await send(`file_report item ${item}`, "file_report",
     [BigInt(poolSel), item, kind, choice, f.get("fix"), f.get("why"), f.get("ev").trim()], stake, {
       rows: [["Claim", `${KIND[kind]}${kind === "wrong_answer" ? ` → ${choice}` : ""} on item ${item}`], ["If upheld", `you receive ${fmtGen(p.reward)} + your stake back`], ["If rejected", `your ${fmtGen(stake)} stake is forfeited to the pool`]],
-      warnings: [`After ${p.timeout_secs} s without an adjudication anyone can recover the report and refund your stake.`] });
+      warnings: [`After ${p.timeout_secs} s without an adjudication anyone can recover the report and refund your stake (as a claimable credit).`, "If the source says the item does not exist (404 or no row), the report is voided and your stake refunded."] });
   if (res && typeof res === "object" && res.id != null) { reportSel = Number(res.id); await refresh(); $("#report-wrap").scrollIntoView({ behavior: "smooth" }); }
 });
 $("#pool-form").addEventListener("submit", async (ev) => {

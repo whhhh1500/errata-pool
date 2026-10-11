@@ -6,8 +6,8 @@
   <title>ErrataPool - staked bug bounties for AI benchmark answer keys, judged by GenLayer validators</title>
   <meta name="description" content="Benchmark maintainers fund a pool; reviewers stake on errata (wrong answer keys, ambiguous or flawed items); GenLayer validators fetch the item and adjudicate under consensus, with one appeal.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📑</text></svg>">
-  <script type="module" crossorigin src="/errata-pool/assets/index-CXJ7e92k.js"></script>
-  <link rel="stylesheet" crossorigin href="/errata-pool/assets/index-N10yqaRB.css">
+  <script type="module" crossorigin src="/errata-pool/assets/index-D47rcdxQ.js"></script>
+  <link rel="stylesheet" crossorigin href="/errata-pool/assets/index-DctKqQ_e.css">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -29,7 +29,7 @@
         <li><strong>Maintainer</strong> funds a pool for a benchmark (an item-URL template with <code>{id}</code>), a reward per erratum and a minimum stake.</li>
         <li><strong>Reviewer</strong> stakes on one item: wrong key (with the right letter), ambiguous, or flawed. The reward is reserved at filing.</li>
         <li><strong>Validators</strong> fetch the item, normalise it identically, read the evidence and vote. They must agree on the item fingerprint, verdict and corrected key.</li>
-        <li><strong>Loser appeals once</strong> against the stored snapshot. Then anyone settles: reward + stake to the reviewer, or the stake goes into the pool. Accepted errata export as JSON.</li>
+        <li><strong>Loser appeals once</strong> against the stored snapshot. Then anyone settles (a final, typed confirmation): reward + stake to the reviewer, or the stake goes into the pool (to the owner once the pool is closed). All payouts are claimable credits; <strong>Claim</strong> withdraws them. Accepted errata export as JSON.</li>
       </ol>
     </section>
 
@@ -101,7 +101,7 @@
           <div><label for="p-fund">Initial funding (GEN)</label><input id="p-fund" name="fund" type="number" step="0.01" min="0.01" value="5"></div>
           <div><label for="p-timeout">Adjudication timeout (s)</label><input id="p-timeout" name="timeout" type="number" min="60" max="2592000" value="604800"></div>
         </div>
-        <p class="hint">A report nobody can adjudicate within the timeout (source down, no consensus) can be recovered by anyone: stake back to the reporter, reward back to the pool. Evidence pages are only used in the first half of the timeout.</p>
+        <p class="hint">A report nobody can adjudicate before its deadline (filed + timeout: source down, no consensus) can then be recovered by anyone: stake back to the reporter, reward back to the pool. An item the source says does not exist is voided at once. Evidence pages are only used in the first half of the timeout.</p>
         <button class="primary" type="submit">Fund and open pool</button>
       </form>
     </section>
@@ -117,7 +117,9 @@
       <h3 id="c-title">Confirm transaction</h3>
       <dl class="kv" id="c-rows"></dl>
       <ul class="warn" id="c-warn"></ul>
+      <p id="c-final" class="final-banner" hidden>FINAL SETTLEMENT: irreversible. Amounts come from the contract's own preview and are re-checked on-chain right before signing.</p>
       <div id="c-typed" hidden><label for="c-typed-in" id="c-typed-label"></label><input id="c-typed-in" autocomplete="off"></div>
+      <div id="c-ack" hidden><label class="check"><input type="checkbox" id="c-ack-in"> <span id="c-ack-label"></span></label></div>
       <div class="row end">
         <button class="ghost" value="cancel" type="submit" id="c-cancel">Cancel</button>
         <button class="primary" value="ok" type="submit" id="c-ok">Sign and send</button>

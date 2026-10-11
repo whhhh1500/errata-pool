@@ -70,3 +70,9 @@ dialog#confirm .end { justify-content: flex-end; gap: .5rem; margin-top: .8rem; 
 dialog#confirm #c-ok[disabled] { opacity: .5; cursor: not-allowed; }
 body.busy button:not(#c-ok):not(#c-cancel) { opacity: .55; pointer-events: none; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+
+.final-banner { background: #3a2a10; border: 2px solid #d97706; color: #ffd9a0; padding: .5rem .75rem; border-radius: 6px; font-weight: 600; }
+dialog.final { border: 3px solid #d97706; }
+.check { display: flex; gap: .5rem; align-items: flex-start; font-weight: 500; margin: .5rem 0; }
+.final-note { background: #1e2a44; padding: .4rem .6rem; border-radius: 6px; }
+.badge.void, .badge.expired { background: #44484f; }
